@@ -24,4 +24,3 @@ class IoTransport implements Transport {
     // No-op
   }
 }
-
