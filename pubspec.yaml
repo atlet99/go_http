@@ -1,0 +1,16 @@
+name: go_http
+description: Reliable HTTP client for Dart — built for control, cancellation and consistency.
+version: 0.1.0
+homepage: https://github.com/atlet99/go_http
+repository: https://github.com/atlet99/go_http
+issue_tracker: https://github.com/atlet99/go_http/issues
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  meta: ^1.11.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.24.0

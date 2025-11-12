@@ -1,5 +1,8 @@
 # See https://www.dartlang.org/guides/libraries/private-files
 
+# Test artifacts
+downloaded_file.bin
+
 # Files and directories created by pub
 .dart_tool/
 .packages
@@ -27,3 +30,19 @@ doc/api/
 
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# Binary files
+*.bin
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.obj
+*.pdb
+*.exp
+*.lib
+
+# Publish checklist
+PUBLISHING_CHECKLIST.md
