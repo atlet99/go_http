@@ -26,7 +26,7 @@ Add `go_http` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  go_http: ^0.1.0
+  go_http: ^0.1.1
 ```
 
 Then run:
