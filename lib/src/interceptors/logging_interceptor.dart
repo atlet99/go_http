@@ -66,7 +66,9 @@ class LoggingInterceptor extends Interceptor {
   void _logResponse(Response response) {
     logger('[go_http] <- ${response.statusCode} ${response.request.uri}');
     if (response.headers.isNotEmpty) {
-      logger('[go_http]    Headers: ${_maskSensitiveHeaders(response.headers)}');
+      logger(
+        '[go_http]    Headers: ${_maskSensitiveHeaders(response.headers)}',
+      );
     }
   }
 

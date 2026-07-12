@@ -17,7 +17,10 @@ void main() {
   test('throwIfCancelled throws after cancel', () {
     final token = CancellationToken();
     token.cancel();
-    expect(() => token.throwIfCancelled(), throwsA(isA<CancellationException>()));
+    expect(
+      () => token.throwIfCancelled(),
+      throwsA(isA<CancellationException>()),
+    );
   });
 
   test('cancel is idempotent (only fires once)', () {

@@ -45,10 +45,9 @@ class MemoryCookieStore implements CookieStore {
 
       // name=value is the first segment before ';'
       final firstSemicolon = trimmed.indexOf(';');
-      final nv = (firstSemicolon >= 0
-              ? trimmed.substring(0, firstSemicolon)
-              : trimmed)
-          .trim();
+      final nv =
+          (firstSemicolon >= 0 ? trimmed.substring(0, firstSemicolon) : trimmed)
+              .trim();
       final eq = nv.indexOf('=');
       if (eq <= 0) {
         continue;
@@ -71,7 +70,12 @@ class MemoryCookieStore implements CookieStore {
     for (final attr in cookie.split(';')) {
       final a = attr.trim();
       if (a.toLowerCase().startsWith('domain=')) {
-        return a.substring(7).trim().toLowerCase().replaceAll('.', '');
+        var domain = a.substring(7).trim().toLowerCase();
+        // Strip a single leading dot (RFC 6265 allows ".example.com").
+        if (domain.startsWith('.')) {
+          domain = domain.substring(1);
+        }
+        return domain;
       }
     }
     return null;

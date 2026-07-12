@@ -2,7 +2,10 @@ import 'dart:async';
 
 /// Token for cancelling operations
 class CancellationToken {
-  final StreamController<void> _controller = StreamController<void>.broadcast();
+  // Synchronous delivery so listeners (e.g. transport abort) react instantly.
+  final StreamController<void> _controller = StreamController<void>.broadcast(
+    sync: true,
+  );
   bool _isCancelled = false;
   String? _reason;
 

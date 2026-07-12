@@ -30,7 +30,8 @@ class FakeTransport implements Transport {
   }) async {
     cancel?.throwIfCancelled();
     sent.add(request);
-    final handler = _index < _handlers.length ? _handlers[_index] : _handlers.last;
+    final handler =
+        _index < _handlers.length ? _handlers[_index] : _handlers.last;
     _index++;
     return handler(request);
   }

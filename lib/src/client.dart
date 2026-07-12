@@ -269,9 +269,11 @@ class GoHttpClient {
     var authRetry = 0;
 
     while (true) {
-      cancel?.throwIfCancelled();
-
       try {
+        // Check cancellation up front (caught below → converted to
+        // CancellationError, and never retried).
+        cancel?.throwIfCancelled();
+
         var response = await _transport.send(
           request,
           cancel: cancel,
@@ -301,11 +303,11 @@ class GoHttpClient {
         // Metrics: request end
         _metrics?.onRequestEnd(request, response);
 
-        // Decode if a decoder was provided, otherwise return raw bytes
-        if (decoder != null) {
-          return response.copyWith<T>(data: decoder.decode(response.data));
-        }
-        return response as Response<T>;
+        // Decode if a decoder was provided, otherwise return the raw bytes.
+        // Re-wrap in a properly-typed Response<T> (avoids an unsafe cast).
+        final decoded =
+            decoder != null ? decoder.decode(response.data) : response.data;
+        return response.copyWith<T>(data: decoded);
       } catch (e) {
         // Build a typed HttpError
         HttpError error;
@@ -367,7 +369,6 @@ class GoHttpClient {
           final delay = _retryPolicy!.getDelay(attempt);
           _metrics?.onRetry(request, attempt, delay);
           await Future.delayed(delay);
-          cancel?.throwIfCancelled();
           continue;
         }
 
