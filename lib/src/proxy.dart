@@ -11,12 +11,12 @@ class Proxy {
     required this.authority,
     this.username,
     this.password,
-  }) : assert(
-          const {'direct', 'http', 'https', 'socks5', 'socks5h'}.contains(
-            scheme,
-          ),
-          'Unsupported proxy scheme: $scheme',
-        );
+  }) {
+    if (!const {'direct', 'http', 'https', 'socks5', 'socks5h'}
+        .contains(scheme)) {
+      throw ArgumentError('Unsupported proxy scheme: $scheme');
+    }
+  }
 
   factory Proxy.direct() => Proxy('direct', authority: '');
 
@@ -146,9 +146,7 @@ class ProxyMounts {
   /// Most-specific matching mount for [uri], or `null` if none matches.
   /// A matched `null` value means "direct for this pattern".
   Proxy? findProxy(Uri uri) {
-    final matched = routes.entries
-        .where((e) => e.key.matches(uri))
-        .toList()
+    final matched = routes.entries.where((e) => e.key.matches(uri)).toList()
       ..sort((a, b) => b.key.specificity.compareTo(a.key.specificity));
     if (matched.isEmpty) {
       return null;
@@ -174,8 +172,7 @@ SecurityContext buildSecurityContext(Object? verify, bool trustEnv) {
     return verify;
   }
   // verify == true (default) or null
-  final certFile =
-      trustEnv ? Platform.environment['SSL_CERT_FILE'] : null;
+  final certFile = trustEnv ? Platform.environment['SSL_CERT_FILE'] : null;
   if (certFile != null) {
     final c = SecurityContext(withTrustedRoots: false);
     c.setTrustedCertificates(certFile);
@@ -195,7 +192,7 @@ bool _hostMatches(String pattern, String host) {
   var escaped = pattern.replaceAll('*', placeholder);
   escaped = escaped.replaceAllMapped(
     RegExp(r'[.+^${}()|[\]\\]'),
-    (m) => '\\$m[0]',
+    (m) => '\\${m[0]}',
   );
   escaped = escaped.replaceAll(placeholder, '.*');
   return RegExp('^$escaped\$').hasMatch(host);
