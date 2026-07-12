@@ -8,6 +8,7 @@ import 'errors.dart';
 import 'headers.dart';
 import 'interceptors/interceptor.dart';
 import 'metrics/metrics_sink.dart';
+import 'multipart.dart';
 import 'policy/redirect_policy.dart';
 import 'policy/retry_policy.dart';
 import 'request.dart';
@@ -279,6 +280,11 @@ class GoHttpClient {
       request = await interceptor.onRequest(request);
     }
 
+    // Serialize a Multipart body to bytes (sets Content-Type if absent).
+    if (request.body is Multipart) {
+      request = _encodeMultipart(request);
+    }
+
     _metrics?.onRequestStart(request);
 
     final effectiveTimeout = _resolveTimeout(request.options?.timeout);
@@ -484,6 +490,15 @@ class GoHttpClient {
       return request;
     }
     return request.copyWith(uri: Uri.parse(base).resolveUri(uri));
+  }
+
+  Request _encodeMultipart(Request request) {
+    final mp = request.body as Multipart;
+    final headers = request.headers.copy();
+    if (headers['content-type'] == null) {
+      headers['content-type'] = mp.contentType;
+    }
+    return request.copyWith(headers: headers, body: mp.render());
   }
 
   /// Expose the redirect policy (used by tests / advanced configuration)

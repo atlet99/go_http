@@ -19,6 +19,7 @@ export 'src/interceptors/logging_interceptor.dart';
 export 'src/logger.dart';
 export 'src/metrics/console_metrics_sink.dart';
 export 'src/metrics/metrics_sink.dart';
+export 'src/multipart.dart';
 export 'src/policy/redirect_policy.dart';
 export 'src/policy/retry_policy.dart';
 export 'src/request.dart';
