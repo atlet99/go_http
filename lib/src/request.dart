@@ -4,6 +4,18 @@ import 'headers.dart';
 
 import 'timeout.dart';
 
+/// Sentinel used on per-request options to mean "fall back to the client
+/// default" — distinct from an explicit `null`, which means "disable".
+///
+/// Mirrors `httpx.USE_CLIENT_DEFAULT`.
+class UseClientDefault {
+  const UseClientDefault._();
+  static const instance = UseClientDefault._();
+}
+
+/// Shared sentinel instance. Compare with `identical(option, useClientDefault)`.
+const useClientDefault = UseClientDefault.instance;
+
 /// HTTP request method
 enum HttpMethod {
   get,
@@ -24,8 +36,8 @@ class RequestOptions {
     this.connectTimeout,
     this.sendTimeout,
     this.receiveTimeout,
-    this.timeout,
-    this.followRedirects,
+    this.timeout = useClientDefault,
+    this.followRedirects = useClientDefault,
     this.maxRedirects,
     this.autoDecompress,
   });
@@ -36,10 +48,11 @@ class RequestOptions {
   final Duration? sendTimeout;
   final Duration? receiveTimeout;
 
-  /// Structured timeout (takes precedence over the individual [connectTimeout]/
-  /// [sendTimeout]/[receiveTimeout] fields when set).
-  final Timeout? timeout;
-  final bool? followRedirects;
+  /// Structured timeout (takes precedence over the individual
+  /// [connectTimeout]/[sendTimeout]/[receiveTimeout] fields when set).
+  /// Defaults to [useClientDefault] (use the client's timeout).
+  final Object? timeout;
+  final Object? followRedirects;
   final int? maxRedirects;
   final bool? autoDecompress;
 

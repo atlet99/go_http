@@ -40,6 +40,7 @@ class GoHttpClient {
     int maxRedirects = 5,
     bool autoDecompress = true,
     int maxAuthRetries = 1,
+    this.baseUrl,
     Map<String, String> defaultHeaders = const {
       'accept-encoding': 'gzip, br',
     },
@@ -75,6 +76,9 @@ class GoHttpClient {
   final int _maxAuthRetries;
   final Headers _defaultHeaders;
   final MetricsSink? _metrics;
+
+  /// Optional base URL; a relative request URI is resolved against it.
+  final String? baseUrl;
 
   static Transport _createDefaultTransport() {
     if (isIoPlatform) {
@@ -235,14 +239,34 @@ class GoHttpClient {
     );
   }
 
-  /// Send a custom HTTP request.
+  /// Build the fully-prepared [Request] by merging client configuration
+  /// (default headers, cookies, query params, base URL) onto [req].
   ///
-  /// Runs request interceptors once, then loops: send → (on error → error
-  /// interceptors once → optional auth retry / policy retry) until success or
-  /// limits are exhausted. [RetrySignal] returned by an interceptor triggers a
-  /// bounded auth-style retry (re-running request interceptors to pick up the
-  /// refreshed credentials).
-  Future<Response<T>> request<T>(
+  /// Mirrors `httpx.Client.buildRequest` — the merge boundary. Callers may
+  /// mutate the result before handing it to [send] (escape hatch):
+  /// ```dart
+  /// final prepared = client.buildRequest(Request.get(uri));
+  /// prepared.headers.add('x-custom', '1');
+  /// final res = await client.send(prepared);
+  /// ```
+  Request buildRequest(Request req) {
+    var request = req;
+    request = request.copyWith(headers: _mergeHeaders(request.headers));
+    final queryParams = request.options?.queryParameters;
+    if (queryParams != null && queryParams.isNotEmpty) {
+      request = _applyQueryParams(request, queryParams);
+    }
+    request = _applyCookies(request);
+    request = _applyBaseUrl(request);
+    return request;
+  }
+
+  /// Send an already-prepared [Request] (use [buildRequest] to prepare one)
+  /// through the transport, running interceptors and retry/redirect policies.
+  ///
+  /// Unlike [request], [send] does **not** re-merge client config, so it is
+  /// safe to call repeatedly on the same prepared request.
+  Future<Response<T>> send<T>(
     Request req, {
     CancellationToken? cancel,
     Decoder<T>? decoder,
@@ -250,31 +274,21 @@ class GoHttpClient {
   }) async {
     var request = req;
 
-    // Merge default headers
-    request = request.copyWith(headers: _mergeHeaders(request.headers));
-
-    // Apply query parameters from options
-    final queryParams = request.options?.queryParameters;
-    if (queryParams != null && queryParams.isNotEmpty) {
-      request = _applyQueryParams(request, queryParams);
-    }
-
-    // Add cookies
-    request = _applyCookies(request);
-
-    // Run request interceptors once
+    // Run request interceptors once per send (re-run on auth retry below).
     for (final interceptor in _interceptors) {
       request = await interceptor.onRequest(request);
     }
 
-    // Metrics: request start
     _metrics?.onRequestStart(request);
 
-    // Resolve effective timeout (per-request overrides client).
-    final effectiveTimeout = request.options?.timeout ?? _timeout;
+    final effectiveTimeout = _resolveTimeout(request.options?.timeout);
     final connectTimeout = effectiveTimeout?.connect ?? _connectTimeout;
     final sendTimeout = effectiveTimeout?.write ?? _sendTimeout;
     final receiveTimeout = effectiveTimeout?.read ?? _receiveTimeout;
+    final followRedirects =
+        _resolveBool(request.options?.followRedirects, _followRedirects);
+    final maxRedirects = request.options?.maxRedirects ?? _maxRedirects;
+    final autoDecompress = request.options?.autoDecompress ?? _autoDecompress;
 
     final stopwatch = Stopwatch()..start();
     var attempt = 0;
@@ -286,15 +300,15 @@ class GoHttpClient {
         // CancellationError, and never retried).
         cancel?.throwIfCancelled();
 
-        var response = await _transport.send(
+        final response = await _transport.send(
           request,
           cancel: cancel,
           connectTimeout: connectTimeout,
           sendTimeout: sendTimeout,
           receiveTimeout: receiveTimeout,
-          followRedirects: request.options?.followRedirects ?? _followRedirects,
-          maxRedirects: request.options?.maxRedirects ?? _maxRedirects,
-          autoDecompress: request.options?.autoDecompress ?? _autoDecompress,
+          followRedirects: followRedirects,
+          maxRedirects: maxRedirects,
+          autoDecompress: autoDecompress,
           onProgress: onProgress,
         );
 
@@ -304,22 +318,22 @@ class GoHttpClient {
         // Treat 4xx/5xx as errors (throws into the catch below, where error
         // interceptors run exactly once).
         if (response.isClientError || response.isServerError) {
-          throw HttpResponseError(request: request, response: response);
+          throw HttpStatusError(request: request, response: response);
         }
 
         // Run response interceptors
+        var resp = response;
         for (final interceptor in _interceptors) {
-          response = await interceptor.onResponse(response);
+          resp = await interceptor.onResponse(resp);
         }
 
         // Metrics: request end
-        _metrics?.onRequestEnd(request, response);
+        _metrics?.onRequestEnd(request, resp);
 
         // Decode if a decoder was provided, otherwise return the raw bytes.
         // Re-wrap in a properly-typed Response<T> (avoids an unsafe cast).
-        final decoded =
-            decoder != null ? decoder.decode(response.data) : response.data;
-        return response.copyWith<T>(
+        final decoded = decoder != null ? decoder.decode(resp.data) : resp.data;
+        return resp.copyWith<T>(
           data: decoded,
           elapsed: stopwatch.elapsed,
         );
@@ -396,6 +410,39 @@ class GoHttpClient {
     }
   }
 
+  /// Send a [Request], first merging it with client configuration.
+  ///
+  /// Equivalent to `send(buildRequest(req))` — see those for the split.
+  Future<Response<T>> request<T>(
+    Request req, {
+    CancellationToken? cancel,
+    Decoder<T>? decoder,
+    ProgressCallback? onProgress,
+  }) =>
+      send<T>(
+        buildRequest(req),
+        cancel: cancel,
+        decoder: decoder,
+        onProgress: onProgress,
+      );
+
+  Timeout? _resolveTimeout(Object? timeout) {
+    if (identical(timeout, useClientDefault)) {
+      return _timeout;
+    }
+    if (timeout == null) {
+      return const Timeout.disabled();
+    }
+    return timeout as Timeout;
+  }
+
+  bool _resolveBool(Object? value, bool fallback) {
+    if (identical(value, useClientDefault)) {
+      return fallback;
+    }
+    return value as bool? ?? fallback;
+  }
+
   Headers _mergeHeaders(Headers customHeaders) {
     final headers = _defaultHeaders.copy();
     for (final entry in customHeaders.multiItems) {
@@ -425,6 +472,18 @@ class GoHttpClient {
         .join('&');
     final query = uri.query.isEmpty ? extra : '${uri.query}&$extra';
     return request.copyWith(uri: uri.replace(query: query));
+  }
+
+  Request _applyBaseUrl(Request request) {
+    final base = baseUrl;
+    if (base == null || base.isEmpty) {
+      return request;
+    }
+    final uri = request.uri;
+    if (uri.hasScheme) {
+      return request;
+    }
+    return request.copyWith(uri: Uri.parse(base).resolveUri(uri));
   }
 
   /// Expose the redirect policy (used by tests / advanced configuration)

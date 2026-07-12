@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-07-13
+
+### Added
+- Public `Headers` collection: case-insensitive, multi-value (`Set-Cookie`, `Vary`, `Link`), `getAll`/`multiItems`, sensitive-header masking in `toString`.
+- `UseClientDefault` sentinel for three-state `timeout`/`followRedirects` (`useClientDefault` → client default, `null` → disable, value → override).
+- `buildRequest()` / `send()` / `request()` split — `buildRequest` is the merge boundary; `send` dispatches a prepared `Request` without re-merging (escape hatch: `client.send(client.buildRequest(req))`).
+- `baseUrl` option on `GoHttpClient` (relative request URIs resolve against it).
+- Structured exception hierarchy: `HttpError` → `RequestError` → `TransportError` (`TimeoutError`/`NetworkError`/`ProtocolError`/`ProxyError`/`UnsupportedProtocol`) → typed leaves (`ConnectTimeoutError`, `ReadTimeoutError`, `WriteTimeoutError`, `ConnectError`, …); `HttpStatusError` deliberately does **not** extend `RequestError` so `catch (RequestError)` never swallows a 4xx/5xx.
+
 ## [0.2.0] - 2026-07-12
 
 ### Fixed

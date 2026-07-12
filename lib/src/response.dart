@@ -96,11 +96,11 @@ class Response<T> {
     return jsonDecode(body);
   }
 
-  /// Throw [HttpResponseError] if the status is an error (4xx/5xx), otherwise
+  /// Throw [HttpStatusError] if the status is an error (4xx/5xx), otherwise
   /// return `this` for chaining.
   Response<T> raiseForStatus() {
     if (isError) {
-      throw HttpResponseError(request: request, response: this);
+      throw HttpStatusError(request: request, response: this);
     }
     return this;
   }

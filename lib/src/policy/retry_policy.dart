@@ -69,7 +69,7 @@ class DefaultRetryPolicy implements RetryPolicy {
     }
 
     // Retry on specific HTTP status codes
-    if (error is HttpResponseError) {
+    if (error is HttpStatusError) {
       final statusCode = error.statusCode;
       return statusCode == 429 || // Too Many Requests
           statusCode == 503 || // Service Unavailable

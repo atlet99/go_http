@@ -178,10 +178,9 @@ class WebTransport implements Transport {
     } on HttpError {
       rethrow;
     } on TimeoutException catch (e) {
-      throw TimeoutError(
+      throw ReadTimeoutError(
         request: request,
         timeout: timeout,
-        message: 'Request timeout after ${timeout.inSeconds}s',
         originalError: e,
       );
     } on html.DomException catch (e) {

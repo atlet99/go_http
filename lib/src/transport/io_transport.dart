@@ -49,10 +49,9 @@ class IoTransport implements Transport {
           .openUrl(request.methodString, request.uri)
           .timeout(connect);
     } on TimeoutException {
-      throw TimeoutError(
+      throw ConnectTimeoutError(
         request: request,
         timeout: connect,
-        message: 'Connection timeout after ${connect.inSeconds}s',
       );
     }
 
@@ -102,10 +101,9 @@ class IoTransport implements Transport {
       try {
         ioResponse = await ioRequest.close().timeout(send);
       } on TimeoutException {
-        throw TimeoutError(
+        throw WriteTimeoutError(
           request: request,
           timeout: send,
-          message: 'Send timeout after ${send.inSeconds}s',
         );
       }
 
@@ -129,10 +127,9 @@ class IoTransport implements Transport {
           }
         }
       } on TimeoutException {
-        throw TimeoutError(
+        throw ReadTimeoutError(
           request: request,
           timeout: receive,
-          message: 'Receive timeout after ${receive.inSeconds}s',
         );
       }
 
@@ -158,7 +155,7 @@ class IoTransport implements Transport {
     } on HttpError {
       rethrow;
     } on SocketException catch (e) {
-      throw NetworkError(
+      throw ConnectError(
         request: request,
         message: 'Network error: ${e.message}',
         originalError: e,

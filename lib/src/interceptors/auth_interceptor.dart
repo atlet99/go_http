@@ -48,7 +48,7 @@ class AuthInterceptor extends Interceptor {
   @override
   Future<Object> onError(HttpError error) async {
     // Handle 401 by refreshing the token and signalling a retry
-    if (error is HttpResponseError &&
+    if (error is HttpStatusError &&
         error.statusCode == 401 &&
         tokenRefresher != null) {
       final newToken = await tokenRefresher!();

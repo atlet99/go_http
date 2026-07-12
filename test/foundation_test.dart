@@ -167,7 +167,7 @@ void main() {
 
     test('raiseForStatus throws on 4xx', () {
       final res = responseWith(status: 404);
-      expect(() => res.raiseForStatus(), throwsA(isA<HttpResponseError>()));
+      expect(() => res.raiseForStatus(), throwsA(isA<HttpStatusError>()));
     });
 
     test('header lookups are case-insensitive', () {
