@@ -71,3 +71,13 @@ class CancellationError extends HttpError {
 
   final String? reason;
 }
+
+/// Sentinel returned by [Interceptor.onError] to signal that the error was
+/// resolved (e.g. credentials were refreshed) and the request should be sent
+/// again.
+///
+/// The client retries the request a bounded number of times (once by default)
+/// when it receives a [RetrySignal] from an interceptor.
+class RetrySignal {
+  const RetrySignal();
+}

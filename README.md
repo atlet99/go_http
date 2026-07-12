@@ -11,14 +11,18 @@
 
 - ✅ **Cross-platform**: Works identically on Dart CLI, Flutter Mobile/Desktop, and Web
 - ✅ **Cancellation**: Every request can be cancelled at any time with `CancellationToken`
-- ✅ **Retry Policy**: Smart retry with decorrelated jitter backoff (only for idempotent methods)
+- ✅ **Retry Policy**: Smart retry with exponential backoff + equal jitter (only for idempotent methods)
+- ✅ **Timeouts**: Real per-phase timeouts (`connectTimeout`/`sendTimeout`/`receiveTimeout`) that throw `TimeoutError`
 - ✅ **Interceptors**: Request/response/error interceptors for logging, auth, etc.
-- ✅ **Cookie Store**: Automatic cookie management with `MemoryCookieStore`
+- ✅ **Auth Refresh**: `AuthInterceptor` refreshes credentials on `401` and retries the request automatically
+- ✅ **Cookie Store**: Automatic cookie management with `MemoryCookieStore` (multi-value `Set-Cookie`, `Domain` attribute)
 - ✅ **Metrics**: Built-in metrics collection with `ConsoleMetricsSink`
-- ✅ **Type-safe**: Full type safety with generics
+- ✅ **Decoders**: Type-safe response decoding via pluggable `Decoder<T>` (`JsonDecoder`, `BytesDecoder`)
+- ✅ **Download Progress**: `onReceiveProgress` callback for tracking byte progress
+- ✅ **All HTTP methods**: `get`, `post`, `put`, `delete`, `patch`, `head`, `options`
 - ✅ **Error Handling**: Comprehensive error types (`NetworkError`, `HttpResponseError`, `TimeoutError`, `CancellationError`)
 - ✅ **Redirects**: Configurable redirect handling
-- ✅ **Timeouts**: Per-request timeout configuration
+- ✅ **Injectable logging**: `LoggingInterceptor` / `ConsoleMetricsSink` accept a custom `Logger` sink
 
 ## 📦 Installation
 
@@ -26,7 +30,7 @@ Add `go_http` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  go_http: ^0.1.1
+  go_http: ^0.2.0
 ```
 
 Then run:
@@ -128,7 +132,7 @@ try {
 
 ### Retry Policy
 
-By default, `go_http` retries failed requests up to 3 times with decorrelated jitter backoff. Retries are **only performed for idempotent methods** (GET, HEAD, OPTIONS) to ensure safety.
+By default, `go_http` retries failed requests up to 3 times with exponential backoff **with equal jitter** (an AWS-recommended, stateless strategy that is safe to share across concurrent requests). Retries are **only performed for idempotent methods** (GET, HEAD, OPTIONS) to ensure safety.
 
 ```dart
 final client = GoHttpClient(
@@ -177,7 +181,10 @@ final client = GoHttpClient(
 
 #### Auth Interceptor
 
-Automatically add authentication tokens and refresh them when needed:
+Automatically add authentication tokens and refresh them when needed. On a
+`401 Unauthorized`, the token is refreshed via `tokenRefresher` and the request
+is retried once (re-running the request interceptors so the fresh token is
+attached):
 
 ```dart
 String? authToken;
@@ -224,6 +231,29 @@ final client = GoHttpClient(
   ],
 );
 ```
+
+### Timeouts
+
+Timeouts are enforced **per phase** (`connect`, `send`, `receive`) and throw
+`TimeoutError` when exceeded. They can be set globally on the client and
+overridden per request:
+
+```dart
+final client = GoHttpClient(
+  connectTimeout: const Duration(seconds: 10),
+  sendTimeout: const Duration(seconds: 30),
+  receiveTimeout: const Duration(seconds: 30),
+);
+
+// Override per request
+final response = await client.get<Uint8List>(
+  Uri.parse('https://api.example.com/data'),
+  options: const RequestOptions(receiveTimeout: Duration(seconds: 5)),
+);
+```
+
+> On native platforms each phase is timed independently via `dart:io`. On the
+> web a single overall request timeout is applied (XHR limitation).
 
 ### Error Handling
 
@@ -461,20 +491,21 @@ final client = GoHttpClient(
 
 ### Type-Safe Responses
 
-Use generics for type-safe responses:
+Pass a `Decoder<T>` to any request method to get a properly-typed
+`Response<T>` — the body is decoded once, inside the client, with no unsafe
+casts:
 
 ```dart
-// Get raw bytes
-final bytesResponse = await client.get<Uint8List>(uri);
+// Decode JSON automatically
+final response = await client.get<dynamic>(
+  Uri.parse('https://api.example.com/data'),
+  decoder: JsonDecoder(),
+);
+final data = response.data as Map<String, dynamic>;
+print(data['key']);
 
-// Get as string (you'll need to decode)
-final stringResponse = await client.get<Uint8List>(uri);
-final text = utf8.decode(stringResponse.data!);
-
-// Use decoders for automatic conversion
-final jsonDecoder = JsonDecoder();
-final response = await client.get<Uint8List>(uri);
-final jsonData = jsonDecoder.decode(response.data!);
+// Raw bytes (default when no decoder is supplied)
+final bytes = await client.get<Uint8List>(Uri.parse('https://x.test/image'));
 ```
 
 ### Response Decoders
@@ -556,9 +587,9 @@ class CustomRedirectPolicy implements RedirectPolicy {
 ## 🛡️ Security
 
 - **Retries**: Only performed for idempotent HTTP methods (GET, HEAD, OPTIONS)
-- **Sensitive Data**: Headers like `authorization`, `cookie`, `x-api-key` are automatically masked in logs
+- **Sensitive Data**: Headers like `authorization`, `cookie`, `set-cookie`, `x-api-key` are automatically masked in logs
 - **TLS**: TLS verification is enabled by default
-- **Timeouts**: Timeouts are always active to prevent hanging requests
+- **Timeouts**: Real per-phase timeouts prevent hanging requests
 
 ## 🌐 Platform Support
 
@@ -583,9 +614,10 @@ The library uses Dart's conditional imports (`if (dart.library.io)` and `if (dar
 Main HTTP client class.
 
 **Methods:**
-- `Future<Response<T>> get<T>(Uri url, {RequestOptions? options, CancellationToken? cancel})`
-- `Future<Response<T>> post<T>(Uri url, {Object? data, RequestOptions? options, CancellationToken? cancel})`
-- `Future<Response<T>> request<T>(Request req, {CancellationToken? cancel})`
+- `Future<Response<T>> get<T>(Uri url, {RequestOptions? options, CancellationToken? cancel, Decoder<T>? decoder, ProgressCallback? onProgress})`
+- `Future<Response<T>> post<T>(Uri url, {Object? data, RequestOptions? options, CancellationToken? cancel, Decoder<T>? decoder, ProgressCallback? onProgress})`
+- `Future<Response<T>> put<T>(...)`, `delete<T>(...)`, `patch<T>(...)`, `head<T>(...)`, `options<T>(...)` — same signature shape
+- `Future<Response<T>> request<T>(Request req, {CancellationToken? cancel, Decoder<T>? decoder, ProgressCallback? onProgress})`
 - `void dispose()` - Clean up resources
 
 ### CancellationSource

@@ -9,7 +9,12 @@ typedef TokenProvider = Future<String?> Function();
 /// Callback for refreshing authentication token
 typedef TokenRefresher = Future<String?> Function();
 
-/// Interceptor for automatic authentication token management
+/// Interceptor for automatic authentication token management.
+///
+/// On the request path it attaches the token from [tokenProvider]. When a `401
+/// Unauthorized` is received, it refreshes the token via [tokenRefresher] and
+/// returns a [RetrySignal]; the client then retries the request (re-running
+/// request interceptors so the fresh token is attached).
 class AuthInterceptor extends Interceptor {
   AuthInterceptor({
     this.tokenProvider,
@@ -22,57 +27,33 @@ class AuthInterceptor extends Interceptor {
   final TokenRefresher? tokenRefresher;
   final String headerName;
   final String headerPrefix;
-  bool _isRefreshing = false;
 
   @override
   Future<Request> onRequest(Request request) async {
-    if (tokenProvider != null) {
-      final token = await tokenProvider!();
-      if (token != null) {
-        final headers = Map<String, String>.from(request.headers);
-        headers[headerName] = '$headerPrefix$token';
-        return request.copyWith(headers: headers);
-      }
+    if (tokenProvider == null) {
+      return request;
     }
-    return request;
+    final token = await tokenProvider!();
+    if (token == null) {
+      return request;
+    }
+    final headers = Map<String, String>.from(request.headers);
+    headers[headerName] = '$headerPrefix$token';
+    return request.copyWith(headers: headers);
   }
 
   @override
-  Future<Response> onResponse(Response response) async {
-    // If we get 401 Unauthorized, try to refresh token
-    if (response.statusCode == 401 && tokenRefresher != null) {
-      if (!_isRefreshing) {
-        _isRefreshing = true;
-        try {
-          final newToken = await tokenRefresher!();
-          if (newToken != null) {
-            // Note: Actual retry should be handled by the client
-            // Token has been refreshed, return response to allow retry
-            return response;
-          }
-        } finally {
-          _isRefreshing = false;
-        }
-      }
-    }
-    return response;
-  }
+  Future<Response> onResponse(Response response) async => response;
 
   @override
   Future<Object> onError(HttpError error) async {
-    // Handle 401 errors
-    if (error is HttpResponseError && error.statusCode == 401) {
-      if (tokenRefresher != null && !_isRefreshing) {
-        _isRefreshing = true;
-        try {
-          final newToken = await tokenRefresher!();
-          if (newToken != null) {
-            // Token refreshed, let client retry
-            return error;
-          }
-        } finally {
-          _isRefreshing = false;
-        }
+    // Handle 401 by refreshing the token and signalling a retry
+    if (error is HttpResponseError &&
+        error.statusCode == 401 &&
+        tokenRefresher != null) {
+      final newToken = await tokenRefresher!();
+      if (newToken != null) {
+        return const RetrySignal();
       }
     }
     return Future.error(error);

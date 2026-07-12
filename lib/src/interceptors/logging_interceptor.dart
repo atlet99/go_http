@@ -1,22 +1,29 @@
 import '../errors.dart';
+import '../logger.dart';
 import '../request.dart';
 import '../response.dart';
 import 'interceptor.dart';
 
-/// Interceptor for logging HTTP requests and responses
+/// Interceptor for logging HTTP requests and responses.
 class LoggingInterceptor extends Interceptor {
   LoggingInterceptor({
     this.logRequest = true,
     this.logResponse = true,
     this.logError = true,
-  });
+    this.logger = defaultLog,
+    List<String>? sensitiveHeaders,
+  }) : _sensitiveHeaders = sensitiveHeaders ?? _defaultSensitive;
 
   final bool logRequest;
   final bool logResponse;
   final bool logError;
-  final List<String> _sensitiveHeaders = [
+  final Logger logger;
+  final List<String> _sensitiveHeaders;
+
+  static const List<String> _defaultSensitive = [
     'authorization',
     'cookie',
+    'set-cookie',
     'x-api-key',
     'x-auth-token',
   ];
@@ -47,28 +54,28 @@ class LoggingInterceptor extends Interceptor {
 
   void _logRequest(Request request) {
     final headers = _maskSensitiveHeaders(request.headers);
-    print('[go_http] → ${request.methodString} ${request.uri}');
+    logger('[go_http] -> ${request.methodString} ${request.uri}');
     if (headers.isNotEmpty) {
-      print('[go_http]   Headers: $headers');
+      logger('[go_http]    Headers: $headers');
     }
     if (request.body != null) {
-      print('[go_http]   Body: ${request.body}');
+      logger('[go_http]    Body: ${request.body}');
     }
   }
 
   void _logResponse(Response response) {
-    print(
-      '[go_http] ← ${response.statusCode} ${response.request.uri}',
-    );
+    logger('[go_http] <- ${response.statusCode} ${response.request.uri}');
     if (response.headers.isNotEmpty) {
-      print('[go_http]   Headers: ${response.headers}');
+      logger(
+        '[go_http]    Headers: ${_maskSensitiveHeaders(response.headers)}',
+      );
     }
   }
 
   void _logError(HttpError error) {
-    print('[go_http] ✗ Error: ${error.message}');
+    logger('[go_http] X  Error: ${error.message}');
     if (error.originalError != null) {
-      print('[go_http]   Original: ${error.originalError}');
+      logger('[go_http]    Original: ${error.originalError}');
     }
   }
 
