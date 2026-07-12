@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import '../cancel/cancellation_token.dart';
 import '../errors.dart';
+import '../headers.dart';
 import '../request.dart';
 import '../response.dart';
 import 'transport.dart';
@@ -66,9 +67,9 @@ class IoTransport implements Transport {
     }
 
     // Set headers
-    request.headers.forEach((key, value) {
-      ioRequest.headers.set(key, value);
-    });
+    for (final entry in request.headers.multiItems) {
+      ioRequest.headers.set(entry.key, entry.value);
+    }
 
     // Set body if present
     if (request.body != null) {
@@ -139,19 +140,13 @@ class IoTransport implements Transport {
       final body = Uint8List.fromList(chunks.expand((c) => c).toList());
 
       // Convert headers (lowercase keys; keep multi-value set-cookie separate)
-      final headers = <String, String>{};
-      final setCookies = <String>[];
+      final headers = Headers();
       ioResponse.headers.forEach((name, values) {
         final lower = name.toLowerCase();
-        if (lower == 'set-cookie') {
-          setCookies.addAll(values);
-        } else {
-          headers[lower] = values.join(', ');
+        for (final value in values) {
+          headers.add(lower, value);
         }
       });
-      if (setCookies.isNotEmpty) {
-        headers['set-cookie'] = setCookies.join('\n');
-      }
 
       return Response(
         request: request,

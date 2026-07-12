@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'errors.dart';
+import 'headers.dart';
 import 'request.dart';
 
 /// HTTP response representation.
@@ -9,17 +10,17 @@ class Response<T> {
   Response({
     required this.request,
     required this.statusCode,
-    Map<String, String>? headers,
+    Object? headers,
     this.data,
     this.statusMessage,
     this.elapsed = Duration.zero,
     List<Response>? history,
-  })  : headers = headers ?? const {},
+  })  : headers = headers is Headers ? headers : Headers(headers),
         history = history ?? const [];
 
   final Request request;
   final int statusCode;
-  final Map<String, String> headers;
+  final Headers headers;
   final T? data;
   final String? statusMessage;
 
@@ -156,7 +157,7 @@ class Response<T> {
   Response<R> copyWith<R>({
     Request? request,
     int? statusCode,
-    Map<String, String>? headers,
+    Object? headers,
     R? data,
     String? statusMessage,
     Duration? elapsed,

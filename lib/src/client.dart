@@ -5,6 +5,7 @@ import 'codec/decoder.dart';
 import 'cookie/cookie_store.dart';
 import 'cookie/memory_cookie_store.dart';
 import 'errors.dart';
+import 'headers.dart';
 import 'interceptors/interceptor.dart';
 import 'metrics/metrics_sink.dart';
 import 'policy/redirect_policy.dart';
@@ -56,7 +57,7 @@ class GoHttpClient {
         _maxRedirects = maxRedirects,
         _autoDecompress = autoDecompress,
         _maxAuthRetries = maxAuthRetries,
-        _defaultHeaders = Map.from(defaultHeaders),
+        _defaultHeaders = Headers(defaultHeaders),
         _metrics = metrics;
 
   final Transport _transport;
@@ -72,7 +73,7 @@ class GoHttpClient {
   final int _maxRedirects;
   final bool _autoDecompress;
   final int _maxAuthRetries;
-  final Map<String, String> _defaultHeaders;
+  final Headers _defaultHeaders;
   final MetricsSink? _metrics;
 
   static Transport _createDefaultTransport() {
@@ -395,10 +396,13 @@ class GoHttpClient {
     }
   }
 
-  Map<String, String> _mergeHeaders(Map<String, String>? customHeaders) {
-    final headers = Map<String, String>.from(_defaultHeaders);
-    if (customHeaders != null) {
-      headers.addAll(customHeaders);
+  Headers _mergeHeaders(Headers customHeaders) {
+    final headers = _defaultHeaders.copy();
+    for (final entry in customHeaders.multiItems) {
+      if (headers.containsKey(entry.key)) {
+        headers.remove(entry.key);
+      }
+      headers.add(entry.key, entry.value);
     }
     return headers;
   }
@@ -408,8 +412,9 @@ class GoHttpClient {
     if (cookies.isEmpty) {
       return request;
     }
-    final headers = Map<String, String>.from(request.headers);
-    headers['cookie'] = cookies.join('; ');
+    final headers = request.headers.copy();
+    headers.remove('cookie');
+    headers.add('cookie', cookies.join('; '));
     return request.copyWith(headers: headers);
   }
 

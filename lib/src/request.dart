@@ -1,5 +1,7 @@
 import 'package:meta/meta.dart';
 
+import 'headers.dart';
+
 import 'timeout.dart';
 
 /// HTTP request method
@@ -69,24 +71,24 @@ class RequestOptions {
 /// HTTP request representation
 @immutable
 class Request {
-  const Request({
+  Request({
     required this.method,
     required this.uri,
-    Map<String, String>? headers,
+    Object? headers,
     this.body,
     this.options,
-  }) : headers = headers ?? const {};
+  }) : headers = headers is Headers ? headers : Headers(headers);
 
   final HttpMethod method;
   final Uri uri;
-  final Map<String, String> headers;
+  final Headers headers;
   final Object? body;
   final RequestOptions? options;
 
   Request copyWith({
     HttpMethod? method,
     Uri? uri,
-    Map<String, String>? headers,
+    Object? headers,
     Object? body,
     RequestOptions? options,
   }) {

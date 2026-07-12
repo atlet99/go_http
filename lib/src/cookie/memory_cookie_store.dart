@@ -29,15 +29,10 @@ class MemoryCookieStore implements CookieStore {
 
   @override
   void setCookies(Response response) {
-    final raw = response.headers['set-cookie'];
-    if (raw == null) {
-      return;
-    }
-
     final requestHost = response.request.uri.host.toLowerCase();
 
-    // Each Set-Cookie header is kept on its own line by the transport.
-    for (final cookie in raw.split('\n')) {
+    // Each Set-Cookie header is a separate value in the multi-value collection.
+    for (final cookie in response.headers.getAll('set-cookie')) {
       final trimmed = cookie.trim();
       if (trimmed.isEmpty) {
         continue;

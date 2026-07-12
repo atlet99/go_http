@@ -12,6 +12,7 @@ export 'src/codec/json_decoder.dart';
 export 'src/cookie/cookie_store.dart';
 export 'src/cookie/memory_cookie_store.dart';
 export 'src/errors.dart';
+export 'src/headers.dart';
 export 'src/interceptors/auth_interceptor.dart';
 export 'src/interceptors/interceptor.dart';
 export 'src/interceptors/logging_interceptor.dart';

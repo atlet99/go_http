@@ -37,7 +37,7 @@ class AuthInterceptor extends Interceptor {
     if (token == null) {
       return request;
     }
-    final headers = Map<String, String>.from(request.headers);
+    final headers = request.headers.copy();
     headers[headerName] = '$headerPrefix$token';
     return request.copyWith(headers: headers);
   }

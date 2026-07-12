@@ -1,4 +1,5 @@
 import '../errors.dart';
+import '../headers.dart';
 import '../logger.dart';
 import '../request.dart';
 import '../response.dart';
@@ -79,15 +80,15 @@ class LoggingInterceptor extends Interceptor {
     }
   }
 
-  Map<String, String> _maskSensitiveHeaders(Map<String, String> headers) {
-    final masked = <String, String>{};
-    headers.forEach((key, value) {
-      if (_sensitiveHeaders.contains(key.toLowerCase())) {
-        masked[key] = '***';
+  Headers _maskSensitiveHeaders(Headers headers) {
+    final masked = Headers();
+    for (final entry in headers.multiItems) {
+      if (_sensitiveHeaders.contains(entry.key.toLowerCase())) {
+        masked.add(entry.key, '***');
       } else {
-        masked[key] = value;
+        masked.add(entry.key, entry.value);
       }
-    });
+    }
     return masked;
   }
 }

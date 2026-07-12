@@ -177,4 +177,43 @@ void main() {
       expect(res.charsetEncoding, 'latin1');
     });
   });
+
+  group('Headers', () {
+    test('case-insensitive lookup and []= replace', () {
+      final h = Headers({'Content-Type': 'a'});
+      expect(h['content-type'], 'a');
+      h['CONTENT-TYPE'] = 'b';
+      expect(h['content-type'], 'b');
+      expect(h.length, 1);
+    });
+
+    test('add appends a value; getAll returns each', () {
+      final h = Headers();
+      h.add('Set-Cookie', 'a=1');
+      h.add('Set-Cookie', 'b=2');
+      expect(h.getAll('set-cookie'), ['a=1', 'b=2']);
+      expect(h['set-cookie'], 'a=1, b=2');
+      expect(h.length, 1);
+    });
+
+    test('multiItems yields every value in order', () {
+      final h = Headers()
+        ..add('x', '1')
+        ..add('x', '2')
+        ..add('y', '3');
+      expect(h.multiItems.map((e) => e.value).toList(), ['1', '2', '3']);
+    });
+
+    test('merge replaces same-named keys, keeps others', () {
+      final merged = Headers({'a': '1', 'b': '2'}).merge({'a': '9'});
+      expect(merged['a'], '9');
+      expect(merged['b'], '2');
+    });
+
+    test('sensitive headers are obfuscated in toString', () {
+      final h = Headers({'Authorization': 'secret', 'X-Other': 'v'});
+      expect(h.toString(), contains('[secure]'));
+      expect(h.toString(), isNot(contains('secret')));
+    });
+  });
 }

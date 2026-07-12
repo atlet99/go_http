@@ -13,27 +13,31 @@ void main() {
     );
   });
 
-  Response responseWith(String setCookieHeader) {
+  Response responseWith(List<String> setCookies) {
+    final headers = Headers();
+    for (final c in setCookies) {
+      headers.add('set-cookie', c);
+    }
     return Response(
       request: request,
       statusCode: 200,
-      headers: {'set-cookie': setCookieHeader},
+      headers: headers,
       data: null,
     );
   }
 
   test('stores and returns a simple cookie', () {
-    store.setCookies(responseWith('session=abc; Path=/'));
+    store.setCookies(responseWith(['session=abc; Path=/']));
     expect(store.getCookies(request.uri), contains('session=abc'));
   });
 
   test('handles multiple Set-Cookie headers separately', () {
     // Two cookies, one of them with an Expires field containing a comma.
     store.setCookies(
-      responseWith(
-        'session=abc; Path=/\n'
+      responseWith([
+        'session=abc; Path=/',
         'tracker=xyz; Expires=Wed, 21 Oct 2025 07:28:00 GMT; Path=/',
-      ),
+      ]),
     );
     final cookies = store.getCookies(request.uri);
     expect(cookies, contains('session=abc'));
@@ -42,7 +46,7 @@ void main() {
 
   test('does not split cookies on the comma inside Expires', () {
     store.setCookies(
-      responseWith('a=1; Expires=Wed, 21 Oct 2025 07:28:00 GMT'),
+      responseWith(['a=1; Expires=Wed, 21 Oct 2025 07:28:00 GMT']),
     );
     final cookies = store.getCookies(request.uri);
     expect(cookies.length, 1);
@@ -68,7 +72,7 @@ void main() {
   });
 
   test('clear and clearDomain', () {
-    store.setCookies(responseWith('x=1; Path=/'));
+    store.setCookies(responseWith(['x=1; Path=/']));
     expect(store.getCookies(request.uri), isNotEmpty);
     store.clearDomain('api.example.com');
     expect(store.getCookies(request.uri), isEmpty);
