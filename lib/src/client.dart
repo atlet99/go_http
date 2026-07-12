@@ -11,6 +11,7 @@ import 'policy/redirect_policy.dart';
 import 'policy/retry_policy.dart';
 import 'request.dart';
 import 'response.dart';
+import 'timeout.dart';
 import 'transport/io_transport_stub.dart'
     if (dart.library.io) 'transport/io_transport.dart';
 import 'transport/platform_checker_stub.dart'
@@ -30,6 +31,7 @@ class GoHttpClient {
     RetryPolicy? retryPolicy,
     RedirectPolicy? redirectPolicy,
     CookieStore? cookieStore,
+    Timeout? timeout,
     Duration connectTimeout = const Duration(seconds: 10),
     Duration sendTimeout = const Duration(seconds: 30),
     Duration receiveTimeout = const Duration(seconds: 30),
@@ -46,6 +48,7 @@ class GoHttpClient {
         _retryPolicy = retryPolicy ?? DefaultRetryPolicy(),
         _redirectPolicy = redirectPolicy ?? DefaultRedirectPolicy(),
         _cookieStore = cookieStore ?? MemoryCookieStore(),
+        _timeout = timeout,
         _connectTimeout = connectTimeout,
         _sendTimeout = sendTimeout,
         _receiveTimeout = receiveTimeout,
@@ -61,6 +64,7 @@ class GoHttpClient {
   final RetryPolicy? _retryPolicy;
   final RedirectPolicy? _redirectPolicy;
   final CookieStore _cookieStore;
+  final Timeout? _timeout;
   final Duration _connectTimeout;
   final Duration _sendTimeout;
   final Duration _receiveTimeout;
@@ -265,6 +269,13 @@ class GoHttpClient {
     // Metrics: request start
     _metrics?.onRequestStart(request);
 
+    // Resolve effective timeout (per-request overrides client).
+    final effectiveTimeout = request.options?.timeout ?? _timeout;
+    final connectTimeout = effectiveTimeout?.connect ?? _connectTimeout;
+    final sendTimeout = effectiveTimeout?.write ?? _sendTimeout;
+    final receiveTimeout = effectiveTimeout?.read ?? _receiveTimeout;
+
+    final stopwatch = Stopwatch()..start();
     var attempt = 0;
     var authRetry = 0;
 
@@ -277,9 +288,9 @@ class GoHttpClient {
         var response = await _transport.send(
           request,
           cancel: cancel,
-          connectTimeout: request.options?.connectTimeout ?? _connectTimeout,
-          sendTimeout: request.options?.sendTimeout ?? _sendTimeout,
-          receiveTimeout: request.options?.receiveTimeout ?? _receiveTimeout,
+          connectTimeout: connectTimeout,
+          sendTimeout: sendTimeout,
+          receiveTimeout: receiveTimeout,
           followRedirects: request.options?.followRedirects ?? _followRedirects,
           maxRedirects: request.options?.maxRedirects ?? _maxRedirects,
           autoDecompress: request.options?.autoDecompress ?? _autoDecompress,
@@ -307,7 +318,10 @@ class GoHttpClient {
         // Re-wrap in a properly-typed Response<T> (avoids an unsafe cast).
         final decoded =
             decoder != null ? decoder.decode(response.data) : response.data;
-        return response.copyWith<T>(data: decoded);
+        return response.copyWith<T>(
+          data: decoded,
+          elapsed: stopwatch.elapsed,
+        );
       } catch (e) {
         // Build a typed HttpError
         HttpError error;

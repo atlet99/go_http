@@ -1,5 +1,7 @@
 import 'package:meta/meta.dart';
 
+import 'timeout.dart';
+
 /// HTTP request method
 enum HttpMethod {
   get,
@@ -20,6 +22,7 @@ class RequestOptions {
     this.connectTimeout,
     this.sendTimeout,
     this.receiveTimeout,
+    this.timeout,
     this.followRedirects,
     this.maxRedirects,
     this.autoDecompress,
@@ -30,6 +33,10 @@ class RequestOptions {
   final Duration? connectTimeout;
   final Duration? sendTimeout;
   final Duration? receiveTimeout;
+
+  /// Structured timeout (takes precedence over the individual [connectTimeout]/
+  /// [sendTimeout]/[receiveTimeout] fields when set).
+  final Timeout? timeout;
   final bool? followRedirects;
   final int? maxRedirects;
   final bool? autoDecompress;
@@ -40,6 +47,7 @@ class RequestOptions {
     Duration? connectTimeout,
     Duration? sendTimeout,
     Duration? receiveTimeout,
+    Timeout? timeout,
     bool? followRedirects,
     int? maxRedirects,
     bool? autoDecompress,
@@ -50,6 +58,7 @@ class RequestOptions {
       connectTimeout: connectTimeout ?? this.connectTimeout,
       sendTimeout: sendTimeout ?? this.sendTimeout,
       receiveTimeout: receiveTimeout ?? this.receiveTimeout,
+      timeout: timeout ?? this.timeout,
       followRedirects: followRedirects ?? this.followRedirects,
       maxRedirects: maxRedirects ?? this.maxRedirects,
       autoDecompress: autoDecompress ?? this.autoDecompress,
