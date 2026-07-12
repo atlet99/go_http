@@ -16,7 +16,15 @@ abstract class RetryPolicy {
   Duration getDelay(int attempt);
 }
 
-/// Default retry policy with decorrelated jitter backoff
+/// Default retry policy using exponential backoff with **equal jitter**.
+///
+/// Equal jitter (an AWS-recommended strategy) computes:
+/// `temp = min(maxDelay, baseDelay * 2^attempt)`, then
+/// `delay = temp/2 + random(0, temp/2)`.
+///
+/// Unlike decorrelated jitter, equal jitter is stateless, so a single shared
+/// [DefaultRetryPolicy] instance is safe to reuse across concurrent requests
+/// without delay-state bleeding between them.
 class DefaultRetryPolicy implements RetryPolicy {
   DefaultRetryPolicy({
     this.maxAttempts = 3,
@@ -45,6 +53,11 @@ class DefaultRetryPolicy implements RetryPolicy {
       return false;
     }
 
+    // Never retry cancellations
+    if (error is CancellationError) {
+      return false;
+    }
+
     // Retry on network errors
     if (error is NetworkError) {
       return true;
@@ -68,18 +81,13 @@ class DefaultRetryPolicy implements RetryPolicy {
 
   @override
   Duration getDelay(int attempt) {
-    // Decorrelated jitter backoff algorithm
-    // delay = random_between(0, min(max_delay, base_delay * 2^attempt))
-    final exponentialDelay = baseDelay * pow(2, attempt);
-    final cappedDelay =
-        exponentialDelay < maxDelay ? exponentialDelay : maxDelay;
+    // Exponential backoff with equal jitter (stateless, AWS-recommended).
+    final exponential = baseDelay * pow(2, attempt);
+    final temp = exponential < maxDelay ? exponential : maxDelay;
 
-    // Generate random delay between 0 and capped delay
-    final randomFactor = _random.nextDouble();
-    final delay = Duration(
-      milliseconds: (cappedDelay.inMilliseconds * randomFactor).round(),
-    );
+    final halfMs = temp.inMilliseconds ~/ 2;
+    final jitter = halfMs <= 0 ? 0 : _random.nextInt(halfMs + 1);
 
-    return delay;
+    return Duration(milliseconds: halfMs + jitter);
   }
 }

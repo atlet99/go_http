@@ -1,20 +1,25 @@
 import '../errors.dart';
+import '../logger.dart';
 import '../request.dart';
 import '../response.dart';
 import 'metrics_sink.dart';
 
-/// Console-based metrics sink for debugging and monitoring
+/// Console-based metrics sink for debugging and monitoring.
 class ConsoleMetricsSink implements MetricsSink {
-  ConsoleMetricsSink({this.enabled = true});
+  ConsoleMetricsSink({
+    this.enabled = true,
+    this.logger = defaultLog,
+  });
 
   final bool enabled;
+  final Logger logger;
 
   @override
   void onRequestStart(Request request) {
     if (!enabled) {
       return;
     }
-    print('[metrics] Request started: ${request.methodString} ${request.uri}');
+    logger('[metrics] Request started: ${request.methodString} ${request.uri}');
   }
 
   @override
@@ -22,9 +27,9 @@ class ConsoleMetricsSink implements MetricsSink {
     if (!enabled) {
       return;
     }
-    print(
+    logger(
       '[metrics] Request completed: ${request.methodString} ${request.uri} '
-      '→ ${response.statusCode}',
+      '-> ${response.statusCode}',
     );
   }
 
@@ -33,7 +38,7 @@ class ConsoleMetricsSink implements MetricsSink {
     if (!enabled) {
       return;
     }
-    print(
+    logger(
       '[metrics] Retry attempt $attempt for ${request.methodString} '
       '${request.uri} after ${delay.inMilliseconds}ms',
     );
@@ -44,7 +49,7 @@ class ConsoleMetricsSink implements MetricsSink {
     if (!enabled) {
       return;
     }
-    print(
+    logger(
       '[metrics] Error: ${error.message} for ${error.request.methodString} '
       '${error.request.uri}',
     );

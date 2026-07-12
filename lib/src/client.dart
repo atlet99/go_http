@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'cancel/cancellation_token.dart';
+import 'codec/decoder.dart';
 import 'cookie/cookie_store.dart';
 import 'cookie/memory_cookie_store.dart';
 import 'errors.dart';
@@ -18,7 +19,10 @@ import 'transport/transport.dart';
 import 'transport/web_transport_stub.dart'
     if (dart.library.html) 'transport/web_transport.dart';
 
-/// Main HTTP client class
+/// Main HTTP client class.
+///
+/// [GoHttpClient] orchestrates interceptors, retry/redirect policies, cookie
+/// storage, timeouts and metrics on top of a pluggable [Transport].
 class GoHttpClient {
   GoHttpClient({
     Transport? transport,
@@ -32,6 +36,7 @@ class GoHttpClient {
     bool followRedirects = true,
     int maxRedirects = 5,
     bool autoDecompress = true,
+    int maxAuthRetries = 1,
     Map<String, String> defaultHeaders = const {
       'accept-encoding': 'gzip, br',
     },
@@ -47,6 +52,7 @@ class GoHttpClient {
         _followRedirects = followRedirects,
         _maxRedirects = maxRedirects,
         _autoDecompress = autoDecompress,
+        _maxAuthRetries = maxAuthRetries,
         _defaultHeaders = Map.from(defaultHeaders),
         _metrics = metrics;
 
@@ -61,11 +67,11 @@ class GoHttpClient {
   final bool _followRedirects;
   final int _maxRedirects;
   final bool _autoDecompress;
+  final int _maxAuthRetries;
   final Map<String, String> _defaultHeaders;
   final MetricsSink? _metrics;
 
   static Transport _createDefaultTransport() {
-    // Use conditional import to determine platform
     if (isIoPlatform) {
       return IoTransport();
     } else {
@@ -78,15 +84,19 @@ class GoHttpClient {
     Uri url, {
     RequestOptions? options,
     CancellationToken? cancel,
-  }) async {
+    Decoder<T>? decoder,
+    ProgressCallback? onProgress,
+  }) {
     return request<T>(
       Request(
         method: HttpMethod.get,
         uri: url,
-        headers: _mergeHeaders(options?.headers),
+        headers: options?.headers ?? const {},
         options: options,
       ),
       cancel: cancel,
+      decoder: decoder,
+      onProgress: onProgress,
     );
   }
 
@@ -96,41 +106,158 @@ class GoHttpClient {
     Object? data,
     RequestOptions? options,
     CancellationToken? cancel,
-  }) async {
+    Decoder<T>? decoder,
+    ProgressCallback? onProgress,
+  }) {
     return request<T>(
       Request(
         method: HttpMethod.post,
         uri: url,
-        headers: _mergeHeaders(options?.headers),
+        headers: options?.headers ?? const {},
         body: data,
         options: options,
       ),
       cancel: cancel,
+      decoder: decoder,
+      onProgress: onProgress,
     );
   }
 
-  /// Send a custom HTTP request
+  /// Send a PUT request
+  Future<Response<T>> put<T>(
+    Uri url, {
+    Object? data,
+    RequestOptions? options,
+    CancellationToken? cancel,
+    Decoder<T>? decoder,
+    ProgressCallback? onProgress,
+  }) {
+    return request<T>(
+      Request(
+        method: HttpMethod.put,
+        uri: url,
+        headers: options?.headers ?? const {},
+        body: data,
+        options: options,
+      ),
+      cancel: cancel,
+      decoder: decoder,
+      onProgress: onProgress,
+    );
+  }
+
+  /// Send a DELETE request
+  Future<Response<T>> delete<T>(
+    Uri url, {
+    Object? data,
+    RequestOptions? options,
+    CancellationToken? cancel,
+    Decoder<T>? decoder,
+    ProgressCallback? onProgress,
+  }) {
+    return request<T>(
+      Request(
+        method: HttpMethod.delete,
+        uri: url,
+        headers: options?.headers ?? const {},
+        body: data,
+        options: options,
+      ),
+      cancel: cancel,
+      decoder: decoder,
+      onProgress: onProgress,
+    );
+  }
+
+  /// Send a PATCH request
+  Future<Response<T>> patch<T>(
+    Uri url, {
+    Object? data,
+    RequestOptions? options,
+    CancellationToken? cancel,
+    Decoder<T>? decoder,
+    ProgressCallback? onProgress,
+  }) {
+    return request<T>(
+      Request(
+        method: HttpMethod.patch,
+        uri: url,
+        headers: options?.headers ?? const {},
+        body: data,
+        options: options,
+      ),
+      cancel: cancel,
+      decoder: decoder,
+      onProgress: onProgress,
+    );
+  }
+
+  /// Send a HEAD request
+  Future<Response<T>> head<T>(
+    Uri url, {
+    RequestOptions? options,
+    CancellationToken? cancel,
+    Decoder<T>? decoder,
+  }) {
+    return request<T>(
+      Request(
+        method: HttpMethod.head,
+        uri: url,
+        headers: options?.headers ?? const {},
+        options: options,
+      ),
+      cancel: cancel,
+      decoder: decoder,
+    );
+  }
+
+  /// Send an OPTIONS request
+  Future<Response<T>> options<T>(
+    Uri url, {
+    RequestOptions? options,
+    CancellationToken? cancel,
+    Decoder<T>? decoder,
+  }) {
+    return request<T>(
+      Request(
+        method: HttpMethod.options,
+        uri: url,
+        headers: options?.headers ?? const {},
+        options: options,
+      ),
+      cancel: cancel,
+      decoder: decoder,
+    );
+  }
+
+  /// Send a custom HTTP request.
+  ///
+  /// Runs request interceptors once, then loops: send → (on error → error
+  /// interceptors once → optional auth retry / policy retry) until success or
+  /// limits are exhausted. [RetrySignal] returned by an interceptor triggers a
+  /// bounded auth-style retry (re-running request interceptors to pick up the
+  /// refreshed credentials).
   Future<Response<T>> request<T>(
     Request req, {
     CancellationToken? cancel,
+    Decoder<T>? decoder,
+    ProgressCallback? onProgress,
   }) async {
     var request = req;
-    var attempt = 0;
 
-    // Apply default headers
-    request = request.copyWith(
-      headers: _mergeHeaders(request.headers),
-    );
+    // Merge default headers
+    request = request.copyWith(headers: _mergeHeaders(request.headers));
 
-    // Add cookies
-    final cookies = _cookieStore.getCookies(request.uri);
-    if (cookies.isNotEmpty) {
-      final headers = Map<String, String>.from(request.headers);
-      headers['cookie'] = cookies.join('; ');
-      request = request.copyWith(headers: headers);
+    // Apply query parameters from options
+    final queryParams = request.options?.queryParameters;
+    if (queryParams != null && queryParams.isNotEmpty) {
+      request = _applyQueryParams(request, queryParams);
     }
 
-    // Run request interceptors
+    // Add cookies
+    request = _applyCookies(request);
+
+    // Run request interceptors once
     for (final interceptor in _interceptors) {
       request = await interceptor.onRequest(request);
     }
@@ -138,12 +265,13 @@ class GoHttpClient {
     // Metrics: request start
     _metrics?.onRequestStart(request);
 
+    var attempt = 0;
+    var authRetry = 0;
+
     while (true) {
-      attempt++;
       cancel?.throwIfCancelled();
 
       try {
-        // Send request through transport
         var response = await _transport.send(
           request,
           cancel: cancel,
@@ -153,46 +281,16 @@ class GoHttpClient {
           followRedirects: request.options?.followRedirects ?? _followRedirects,
           maxRedirects: request.options?.maxRedirects ?? _maxRedirects,
           autoDecompress: request.options?.autoDecompress ?? _autoDecompress,
+          onProgress: onProgress,
         );
 
         // Store cookies from response
         _cookieStore.setCookies(response);
 
-        // Check for HTTP error status codes (4xx, 5xx)
+        // Treat 4xx/5xx as errors (throws into the catch below, where error
+        // interceptors run exactly once).
         if (response.isClientError || response.isServerError) {
-          final httpError = HttpResponseError(
-            request: request,
-            response: response,
-          );
-
-          // Run error interceptors
-          for (final interceptor in _interceptors) {
-            try {
-              final handledError = await interceptor.onError(httpError);
-              if (handledError is HttpError) {
-                throw handledError;
-              }
-            } catch (e) {
-              if (e is HttpError) {
-                rethrow;
-              }
-            }
-          }
-
-          // Check if we should retry
-          if (_retryPolicy != null &&
-              _retryPolicy!.shouldRetry(request, httpError, attempt)) {
-            final delay = _retryPolicy!.getDelay(attempt);
-            _metrics?.onRetry(request, attempt, delay);
-            await Future.delayed(delay);
-            continue;
-          }
-
-          // Metrics: error
-          _metrics?.onError(httpError);
-
-          // Re-throw error
-          throw httpError;
+          throw HttpResponseError(request: request, response: response);
         }
 
         // Run response interceptors
@@ -203,26 +301,13 @@ class GoHttpClient {
         // Metrics: request end
         _metrics?.onRequestEnd(request, response);
 
-        // Handle redirects
-        if (response.isRedirect && _followRedirects) {
-          final location = response.headers['location'];
-          if (location != null) {
-            final redirectUri = Uri.parse(location);
-            final absoluteUri = request.uri.resolveUri(redirectUri);
-            if (_redirectPolicy?.shouldFollowRedirect(
-                  request,
-                  response,
-                  attempt,
-                ) ??
-                false) {
-              request = request.copyWith(uri: absoluteUri);
-              continue;
-            }
-          }
+        // Decode if a decoder was provided, otherwise return raw bytes
+        if (decoder != null) {
+          return response.copyWith<T>(data: decoder.decode(response.data));
         }
-
         return response as Response<T>;
       } catch (e) {
+        // Build a typed HttpError
         HttpError error;
         if (e is HttpError) {
           error = e;
@@ -240,24 +325,49 @@ class GoHttpClient {
           );
         }
 
-        // Run error interceptors
+        // Never retry or intercept cancellations
+        if (error is CancellationError) {
+          _metrics?.onError(error);
+          throw error;
+        }
+
+        // Run error interceptors exactly once per attempt
+        Object result = error;
         for (final interceptor in _interceptors) {
           try {
-            error = await interceptor.onError(error) as HttpError;
-          } catch (e) {
-            // Interceptor re-threw the error
-            if (e is HttpError) {
-              error = e;
-            }
+            result = await interceptor.onError(result as HttpError);
+          } on HttpError catch (interceptorError) {
+            result = interceptorError;
           }
         }
 
-        // Check if we should retry
+        // An interceptor may signal that the error was resolved and the
+        // request should be retried (e.g. after an auth-token refresh).
+        if (result is RetrySignal) {
+          if (authRetry < _maxAuthRetries) {
+            authRetry++;
+            // Re-run request interceptors to pick up the refreshed state
+            for (final interceptor in _interceptors) {
+              request = await interceptor.onRequest(request);
+            }
+            continue;
+          }
+          // Retry budget exhausted: fall through with the original error
+          result = error;
+        }
+
+        if (result is HttpError) {
+          error = result;
+        }
+
+        // Retry policy (bounded)
         if (_retryPolicy != null &&
             _retryPolicy!.shouldRetry(request, error, attempt)) {
+          attempt++;
           final delay = _retryPolicy!.getDelay(attempt);
           _metrics?.onRetry(request, attempt, delay);
           await Future.delayed(delay);
+          cancel?.throwIfCancelled();
           continue;
         }
 
@@ -277,6 +387,28 @@ class GoHttpClient {
     }
     return headers;
   }
+
+  Request _applyCookies(Request request) {
+    final cookies = _cookieStore.getCookies(request.uri);
+    if (cookies.isEmpty) {
+      return request;
+    }
+    final headers = Map<String, String>.from(request.headers);
+    headers['cookie'] = cookies.join('; ');
+    return request.copyWith(headers: headers);
+  }
+
+  Request _applyQueryParams(Request request, Map<String, String> params) {
+    final uri = request.uri;
+    final extra = params.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    final query = uri.query.isEmpty ? extra : '${uri.query}&$extra';
+    return request.copyWith(uri: uri.replace(query: query));
+  }
+
+  /// Expose the redirect policy (used by tests / advanced configuration)
+  RedirectPolicy? get redirectPolicy => _redirectPolicy;
 
   /// Dispose resources
   void dispose() {

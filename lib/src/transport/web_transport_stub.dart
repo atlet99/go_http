@@ -15,6 +15,7 @@ class WebTransport implements Transport {
     bool? followRedirects,
     int? maxRedirects,
     bool? autoDecompress,
+    ProgressCallback? onProgress,
   }) {
     throw UnsupportedError('WebTransport is only available on web platforms');
   }
