@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import '../cancel/cancellation_token.dart';
 import '../errors.dart';
 import '../headers.dart';
+import '../proxy.dart';
 import '../request.dart';
 import '../response.dart';
 import 'transport.dart';
@@ -15,10 +16,17 @@ class IoTransport implements Transport {
     HttpClient? httpClient,
     this.maxConnectionsPerHost = 6,
     this.autoDecompress = true,
-  }) : _httpClient = httpClient ??
-            (HttpClient()
-              ..maxConnectionsPerHost = maxConnectionsPerHost
-              ..autoUncompress = autoDecompress);
+    ProxyMounts? proxyMounts,
+    bool trustEnv = true,
+    Object? verify,
+  })  : _httpClient = httpClient ??
+            _buildClient(
+              maxConnectionsPerHost,
+              autoDecompress,
+              proxyMounts,
+              trustEnv,
+              verify,
+            );
 
   final HttpClient _httpClient;
   final int maxConnectionsPerHost;
@@ -183,5 +191,36 @@ class IoTransport implements Transport {
   @override
   void dispose() {
     _httpClient.close(force: true);
+  }
+
+  static HttpClient _buildClient(
+    int maxConnectionsPerHost,
+    bool autoDecompress,
+    ProxyMounts? proxyMounts,
+    bool trustEnv,
+    Object? verify,
+  ) {
+    final client = HttpClient(context: buildSecurityContext(verify, trustEnv))
+      ..maxConnectionsPerHost = maxConnectionsPerHost
+      ..autoUncompress = autoDecompress;
+
+    if (verify == false) {
+      // No certificate verification.
+      client.badCertificateCallback = (_, __, ___) => true;
+    }
+
+    if (proxyMounts != null || !trustEnv) {
+      client.findProxy = (uri) {
+        final proxy = proxyMounts?.findProxy(uri);
+        if (proxy != null) {
+          return proxy.findProxyUrl; // Proxy or throws for socks
+        }
+        if (!trustEnv) {
+          return 'DIRECT';
+        }
+        return HttpClient.findProxyFromEnvironment(uri);
+      };
+    }
+    return client;
   }
 }

@@ -22,6 +22,7 @@ export 'src/metrics/metrics_sink.dart';
 export 'src/multipart.dart';
 export 'src/policy/redirect_policy.dart';
 export 'src/policy/retry_policy.dart';
+export 'src/proxy.dart';
 export 'src/request.dart';
 export 'src/response.dart';
 export 'src/status_codes.dart';

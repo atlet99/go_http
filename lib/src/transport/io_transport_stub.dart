@@ -1,4 +1,5 @@
 import '../cancel/cancellation_token.dart';
+import '../proxy.dart';
 import '../request.dart';
 import '../response.dart';
 import 'transport.dart';
@@ -9,6 +10,9 @@ class IoTransport implements Transport {
     dynamic httpClient,
     int maxConnectionsPerHost = 6,
     bool autoDecompress = true,
+    ProxyMounts? proxyMounts,
+    bool trustEnv = true,
+    Object? verify,
   });
 
   @override

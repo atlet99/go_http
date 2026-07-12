@@ -11,6 +11,7 @@ import 'metrics/metrics_sink.dart';
 import 'multipart.dart';
 import 'policy/redirect_policy.dart';
 import 'policy/retry_policy.dart';
+import 'proxy.dart';
 import 'request.dart';
 import 'response.dart';
 import 'timeout.dart';
@@ -42,11 +43,18 @@ class GoHttpClient {
     bool autoDecompress = true,
     int maxAuthRetries = 1,
     this.baseUrl,
+    ProxyMounts? proxyMounts,
+    bool trustEnv = true,
+    Object? verify,
     Map<String, String> defaultHeaders = const {
       'accept-encoding': 'gzip, br',
     },
     MetricsSink? metrics,
-  })  : _transport = transport ?? _createDefaultTransport(),
+  })  : _transport = transport ?? _createDefaultTransport(
+          proxyMounts: proxyMounts,
+          trustEnv: trustEnv,
+          verify: verify,
+        ),
         _interceptors = List.from(interceptors),
         _retryPolicy = retryPolicy ?? DefaultRetryPolicy(),
         _redirectPolicy = redirectPolicy ?? DefaultRedirectPolicy(),
@@ -81,9 +89,17 @@ class GoHttpClient {
   /// Optional base URL; a relative request URI is resolved against it.
   final String? baseUrl;
 
-  static Transport _createDefaultTransport() {
+  static Transport _createDefaultTransport({
+    ProxyMounts? proxyMounts,
+    bool trustEnv = true,
+    Object? verify,
+  }) {
     if (isIoPlatform) {
-      return IoTransport();
+      return IoTransport(
+        proxyMounts: proxyMounts,
+        trustEnv: trustEnv,
+        verify: verify,
+      );
     } else {
       return WebTransport();
     }
