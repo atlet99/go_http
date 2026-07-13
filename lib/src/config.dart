@@ -1,4 +1,5 @@
 import 'cookie/cookie_store.dart';
+import 'enrichment.dart';
 import 'event_hooks.dart';
 import 'interceptors/interceptor.dart';
 import 'metrics/metrics_sink.dart';
@@ -92,11 +93,13 @@ class ExecutorConfig {
     this.interceptors = const [],
     this.metrics,
     this.eventHooks,
+    this.enrichers = const [],
   });
 
   final List<Interceptor> interceptors;
   final MetricsSink? metrics;
   final EventHooks? eventHooks;
+  final List<ResponseEnricher> enrichers;
 
   List<ValidationError> validate() => const [];
 

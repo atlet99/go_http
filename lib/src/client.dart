@@ -104,7 +104,8 @@ class GoHttpClient {
               const {'accept-encoding': 'gzip, deflate, br'},
         ),
         _metrics = metrics ?? executorConfig?.metrics,
-        _eventHooks = eventHooks ?? executorConfig?.eventHooks;
+        _eventHooks = eventHooks ?? executorConfig?.eventHooks,
+        _enrichers = executorConfig?.enrichers ?? const [];
 
   final Transport _transport;
   final List<Interceptor> _interceptors;
@@ -122,6 +123,7 @@ class GoHttpClient {
   final Headers _defaultHeaders;
   final MetricsSink? _metrics;
   EventHooks? _eventHooks;
+  final List<ResponseEnricher> _enrichers;
 
   int _inFlight = 0;
   bool _isShuttingDown = false;
@@ -484,7 +486,7 @@ class GoHttpClient {
         // Decode if a decoder was provided, otherwise return the raw bytes.
         // Re-wrap in a properly-typed Response<T> (avoids an unsafe cast).
         final decoded = decoder != null ? decoder.decode(resp.data) : resp.data;
-        final enrichment = _buildEnrichment(request, resp);
+        final enrichment = await _buildEnrichment(request, resp);
         return resp.copyWith<T>(
           data: decoded,
           elapsed: stopwatch.elapsed,
@@ -647,12 +649,23 @@ class GoHttpClient {
   }
 
   /// Build enrichment data after a response is received.
-  /// ponytail: minimal — only transport-independent fields.
-  ResponseEnrichment _buildEnrichment(Request req, Response resp) {
+  Future<ResponseEnrichment> _buildEnrichment(Request req, Response resp) async {
+    Map<String, dynamic>? extra;
+    if (_enrichers.isNotEmpty) {
+      extra = {};
+      for (final enricher in _enrichers) {
+        final values = await enricher.enrich(resp);
+        extra.addAll(values);
+      }
+      if (extra.isEmpty) {
+        extra = null;
+      }
+    }
     return ResponseEnrichment(
       trace: req.trace,
       remoteAddress: resp.remoteAddress,
       tlsInfo: resp.tlsInfo,
+      extra: extra,
     );
   }
 

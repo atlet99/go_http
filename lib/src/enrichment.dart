@@ -1,4 +1,5 @@
 import 'request_trace.dart';
+import 'response.dart';
 
 /// Per-phase timing for a single HTTP request.
 ///
@@ -82,6 +83,23 @@ class TlsInfo {
   final DateTime? validTo;
 }
 
+/// SPI for enriching responses with custom data.
+///
+/// Implementations compute extra metadata per response (e.g. title extraction,
+/// content hashing, tech detection) and return it as key-value pairs stored
+/// in [ResponseEnrichment.extra].
+///
+/// Each enricher is gated via the [name] key in the client's enricher list —
+/// only registered enrichers run. Implementations should be lazy: do the
+/// minimum work in [enrich] and compute heavy fields only when accessed.
+abstract class ResponseEnricher {
+  const ResponseEnricher();
+
+  String get name;
+
+  Future<Map<String, dynamic>> enrich(Response response);
+}
+
 /// Optional enrichment data attached to a [Response].
 ///
 /// Populated by the transport and client when enrichment is enabled.
@@ -92,6 +110,7 @@ class ResponseEnrichment {
     this.tlsInfo,
     this.trace,
     this.remoteAddress,
+    this.extra,
   });
 
   final ResponseTiming? timing;
@@ -103,4 +122,7 @@ class ResponseEnrichment {
   /// The IP address of the remote server that handled the request.
   /// Populated by the transport when available.
   final String? remoteAddress;
+
+  /// Extra key-value pairs contributed by registered [ResponseEnricher]s.
+  final Map<String, dynamic>? extra;
 }
