@@ -54,6 +54,19 @@ FakeHandler ok([
           data: data ?? Uint8List(0),
         );
 
+FakeHandler okWithAddr(
+  String remoteAddress, [
+  int code = 200,
+  Uint8List? data,
+]) =>
+    (r) async => Response(
+          request: r,
+          statusCode: code,
+          headers: const {},
+          data: data ?? Uint8List(0),
+          remoteAddress: remoteAddress,
+        );
+
 FakeHandler status(int code) => ok(code);
 
 FakeHandler networkError([String message = 'boom']) =>

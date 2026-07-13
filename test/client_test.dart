@@ -272,6 +272,88 @@ void main() {
     });
   });
 
+  group('GoHttpClient per-request delay', () {
+    test('delay pauses before sending the request', () async {
+      final transport = FakeTransport([ok(200)]);
+      final client = GoHttpClient(transport: transport);
+
+      final sw = Stopwatch()..start();
+      await client.get<Uint8List>(
+        Uri.parse('https://x.test'),
+        options: const RequestOptions(delay: Duration(milliseconds: 50)),
+      );
+      sw.stop();
+
+      expect(sw.elapsedMilliseconds, greaterThanOrEqualTo(45));
+      expect(transport.callCount, 1);
+      client.dispose();
+    });
+
+    test('null delay does not pause', () async {
+      final transport = FakeTransport([ok(200)]);
+      final client = GoHttpClient(transport: transport);
+
+      final sw = Stopwatch()..start();
+      await client.get<Uint8List>(
+        Uri.parse('https://x.test'),
+        options: const RequestOptions(),
+      );
+      sw.stop();
+
+      expect(sw.elapsedMilliseconds, lessThan(200));
+      client.dispose();
+    });
+  });
+
+  group('GoHttpClient body byte limits', () {
+    test('maxBytesToRead throws MaxBytesReadError when exceeded', () async {
+      final transport = FakeTransport([
+        ok(200, Uint8List.fromList([1, 2, 3, 4, 5])),
+      ]);
+      final client = GoHttpClient(transport: transport);
+
+      await expectLater(
+        client.get<Uint8List>(
+          Uri.parse('https://x.test'),
+          options: const RequestOptions(maxBytesToRead: 3),
+        ),
+        throwsA(isA<MaxBytesReadError>()),
+      );
+      client.dispose();
+    });
+
+    test('maxBytesToSave throws MaxBytesReadError when exceeded', () async {
+      final transport = FakeTransport([
+        ok(200, Uint8List.fromList([1, 2, 3, 4, 5])),
+      ]);
+      final client = GoHttpClient(transport: transport);
+
+      await expectLater(
+        client.get<Uint8List>(
+          Uri.parse('https://x.test'),
+          options: const RequestOptions(maxBytesToSave: 3),
+        ),
+        throwsA(isA<MaxBytesReadError>()),
+      );
+      client.dispose();
+    });
+
+    test('body within byte limits passes normally', () async {
+      final transport = FakeTransport([
+        ok(200, Uint8List.fromList([1, 2, 3])),
+      ]);
+      final client = GoHttpClient(transport: transport);
+
+      final res = await client.get<Uint8List>(
+        Uri.parse('https://x.test'),
+        options: const RequestOptions(maxBytesToRead: 10, maxBytesToSave: 10),
+      );
+      expect(res.statusCode, 200);
+      expect(res.data, [1, 2, 3]);
+      client.dispose();
+    });
+  });
+
   group('GoHttpClient convenience methods', () {
     final cases =
         <String, Future<Response<Uint8List>> Function(GoHttpClient, Uri)>{
@@ -292,6 +374,37 @@ void main() {
         expect(transport.sent.single.method.name, name);
         client.dispose();
       });
+    });
+  });
+
+  group('GoHttpClient dialAddress', () {
+    test('passed through options to the transport', () async {
+      final transport = FakeTransport([ok(200)]);
+      final client = GoHttpClient(transport: transport);
+      final addr = Uri.parse('https://192.168.1.1:8443');
+
+      await client.get<Uint8List>(
+        Uri.parse('https://api.example.com/data'),
+        options: RequestOptions(dialAddress: addr),
+      );
+
+      expect(transport.sent.single.uri.host, 'api.example.com');
+      expect(transport.sent.single.options?.dialAddress, addr);
+      client.dispose();
+    });
+  });
+
+  group('RequestOptions dialAddress', () {
+    test('is null by default', () {
+      const opts = RequestOptions();
+      expect(opts.dialAddress, isNull);
+    });
+
+    test('survives copyWith', () {
+      final addr = Uri.parse('https://10.0.0.1:9090');
+      const opts = RequestOptions();
+      final copy = opts.copyWith(dialAddress: addr);
+      expect(copy.dialAddress, addr);
     });
   });
 }

@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 import 'headers.dart';
+import 'request_trace.dart';
 import 'timeout.dart';
 import 'url.dart';
 
@@ -40,6 +41,11 @@ class RequestOptions {
     this.followRedirects = useClientDefault,
     this.maxRedirects,
     this.autoDecompress,
+    this.delay,
+    this.maxBytesToRead,
+    this.maxBytesToSave,
+    this.dialAddress,
+    this.sni,
   });
 
   final Map<String, String>? headers;
@@ -56,6 +62,34 @@ class RequestOptions {
   final int? maxRedirects;
   final bool? autoDecompress;
 
+  /// Optional delay to wait before sending the request.
+  /// Useful for rate-limiting (polite crawling, avoiding throttling).
+  final Duration? delay;
+
+  /// Hard limit on response body bytes. Throws [MaxBytesReadError] if the
+  /// decoded response body exceeds this value.
+  final int? maxBytesToRead;
+
+  /// Hard limit on response body bytes before saving/spooling. Throws
+  /// [MaxBytesReadError] if the decoded body exceeds this value.
+  /// ponytail: future versions may spill to a temp file instead of throwing.
+  final int? maxBytesToSave;
+
+  /// Override the IP/host:port used for the TCP connection, while keeping the
+  /// original [Request.uri] for the `Host` header and TLS SNI. Useful for
+  /// vhost-probing, pinned-IP testing, or connecting via a specific IP without
+  /// changing the logical request target.
+  /// ponytail: dart:io HttpClient does not support custom Dialer integration,
+  /// so this works by rewriting the connection URI and restoring the Host
+  /// header. TLS SNI still uses the original hostname (dart:io handles this).
+  final Uri? dialAddress;
+
+  /// Override the TLS SNI (Server Name Indication) hostname sent during the
+  /// TLS handshake, while keeping the original [Request.uri] for the TCP
+  /// connection target and `Host` header. Useful for vhost-testing behind
+  /// load balancers or CDNs that route by SNI.
+  final String? sni;
+
   RequestOptions copyWith({
     Map<String, String>? headers,
     QueryParams? queryParameters,
@@ -66,6 +100,11 @@ class RequestOptions {
     bool? followRedirects,
     int? maxRedirects,
     bool? autoDecompress,
+    Duration? delay,
+    int? maxBytesToRead,
+    int? maxBytesToSave,
+    Uri? dialAddress,
+    String? sni,
   }) {
     return RequestOptions(
       headers: headers ?? this.headers,
@@ -77,6 +116,11 @@ class RequestOptions {
       followRedirects: followRedirects ?? this.followRedirects,
       maxRedirects: maxRedirects ?? this.maxRedirects,
       autoDecompress: autoDecompress ?? this.autoDecompress,
+      delay: delay ?? this.delay,
+      maxBytesToRead: maxBytesToRead ?? this.maxBytesToRead,
+      maxBytesToSave: maxBytesToSave ?? this.maxBytesToSave,
+      dialAddress: dialAddress ?? this.dialAddress,
+      sni: sni ?? this.sni,
     );
   }
 }
@@ -90,6 +134,7 @@ class Request {
     Object? headers,
     this.body,
     this.options,
+    this.trace,
   }) : headers = headers is Headers ? headers : Headers(headers);
 
   final HttpMethod method;
@@ -98,12 +143,16 @@ class Request {
   final Object? body;
   final RequestOptions? options;
 
+  /// Optional trace populated by the transport with phase timestamps.
+  final RequestTrace? trace;
+
   Request copyWith({
     HttpMethod? method,
     Uri? uri,
     Object? headers,
     Object? body,
     RequestOptions? options,
+    RequestTrace? trace,
   }) {
     return Request(
       method: method ?? this.method,
@@ -111,6 +160,7 @@ class Request {
       headers: headers ?? this.headers,
       body: body ?? this.body,
       options: options ?? this.options,
+      trace: trace ?? this.trace,
     );
   }
 
@@ -118,7 +168,9 @@ class Request {
   bool get isIdempotent {
     return method == HttpMethod.get ||
         method == HttpMethod.head ||
-        method == HttpMethod.options;
+        method == HttpMethod.options ||
+        method == HttpMethod.put ||
+        method == HttpMethod.delete;
   }
 
   /// Convert HttpMethod to string

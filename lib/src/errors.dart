@@ -274,6 +274,52 @@ class RequestNotRead extends StreamError {
   });
 }
 
+/// The client has been shut down (graceful or hard) and does not accept new
+/// requests. Thrown by [send] when [shutdown] or [dispose] was called.
+class ClientShutdownError extends RequestError {
+  ClientShutdownError({
+    required super.request,
+    String? message,
+    super.originalError,
+  }) : super(
+          message: message ?? 'Client is shut down and not accepting requests',
+        );
+}
+
+/// Response body exceeded the maximum number of bytes allowed by
+/// [RequestOptions.maxBytesToRead] or [RequestOptions.maxBytesToSave].
+class MaxBytesReadError extends RequestError {
+  MaxBytesReadError({
+    required super.request,
+    required this.maxBytes,
+    required this.actualBytes,
+    String? message,
+    super.originalError,
+  }) : super(
+          message: message ??
+              'Response body exceeds byte limit: $actualBytes > $maxBytes',
+        );
+
+  /// The configured byte limit that was exceeded.
+  final int maxBytes;
+
+  /// Actual byte size of the response body.
+  final int actualBytes;
+}
+
+/// Collects multiple errors into one, analogous to Go's `multierr`.
+/// Useful when closing multiple resources — one error should not mask others.
+/// ponytail: simple list wrapper.
+class AggregateError extends HttpError {
+  AggregateError(this.errors, {String? message})
+      : super(
+          message: message ?? errors.map((e) => e.toString()).join('; '),
+        );
+
+  /// The individual errors that were aggregated.
+  final List<Object> errors;
+}
+
 /// Sentinel returned by [Interceptor.onError] to signal that the error was
 /// resolved (e.g. credentials were refreshed) and the request should be sent
 /// again.

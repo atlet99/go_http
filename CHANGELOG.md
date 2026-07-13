@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-07-13
+
+### Added
+- Per-request delay: `RequestOptions.delay` pauses before sending the request (rate-limiting / polite crawling).
+- Body byte limits: `RequestOptions.maxBytesToRead` / `maxBytesToSave` throw `MaxBytesReadError` when the decoded response body exceeds the configured threshold.
+- Drain-and-close for keep-alive: `IoTransport` drains remaining response bytes before throwing read errors, returning the connection to the pool.
+- `RateLimiter` — token-bucket rate limiter with `.take()` → `Future<void>` (configurable tokens/sec and burst).
+- `ResizeableSemaphore` — adaptive semaphore with runtime `resize()`, FIFO fair ordering, non-negative `available`.
+- `HostCircuitBreaker` — per-host circuit breaker (closed/open/half-open), configurable failure threshold and cooldown, `CircuitOpenError` for fail-fast.
+- `RateLimitPolicy.global()` / `.perHost()` — policy wrapper over `RateLimiter` for shared or per-host rate limiting.
+- `ResponseEnrichment`, `ResponseTiming`, `TlsInfo` — enrichment data model attached to `Response.enrichment`.
+- `RequestTrace` — per-request phase timestamps (wroteRequest, gotFirstResponseByte, responseDone) populated by `IoTransport`.
+- `RetryPolicy.scanning()` / `.single()` — retry presets for probing vs critical workloads.
+- Idempotency extended: `PUT` and `DELETE` are now retried by default (matching `httpx`/`retryablehttp`).
+- Gzip-fallback: `IoTransport` returns raw body instead of crashing when a server sends `Content-Encoding: gzip` on an uncompressed body.
+- Auto-scheme fallback: `IoTransport.tryHttpOnHttpsError` (default `false`) retries a failed HTTPS connection once with HTTP.
+- Graceful two-step shutdown: `GoHttpClient.shutdown()` (soft — stops new requests, waits for in-flight) and `dispose()` (hard — closes transport immediately). `ClientShutdownError` thrown on new requests after shutdown.
+- `Dialer` abstract class + `SocketDialer` — pluggable socket-level dialer interface (integration with `IoTransport` pending transport rewrite).
+- IP-override: `RequestOptions.dialAddress` — connect to a specific IP:port while keeping the original hostname in the `Host` header.
+- Dialed-IP exposure: `Response.remoteAddress` and `ResponseEnrichment.remoteAddress` — IP address of the remote server that handled the request.
+- `TlsInfo` enrichment: `subject`, `issuer`, `fingerprintSha1`, `validFrom`, `validTo` fields; populated by `IoTransport` from `HttpClientResponse.certificate`.
+- `GoHttpClient.validate()` — returns `List<ValidationError>` with config issues (timeout <= 0, redirects < 0, etc.). Non-throwing, suitable for UI/config check.
+- `AggregateError` — multierr equivalent collecting multiple errors into one (for close-multiple-resources patterns).
+- `ValidationError` class — field + message pair for config validation results.
+- Two-level config: `ClientConfig` (transport/timeout/TLS/proxy/cookies) + `ExecutorConfig` (interceptors/metrics/hooks/enrichers), both `validate()`, both optional and backward-compatible in `GoHttpClient` constructor.
+- `ProgressReporter` — per-batch progress with RPS, percentage, elapsed, and ETA (`ProgressReporter.summary`).
+- `ResponseEnricher` SPI — `abstract class ResponseEnricher` registered via `ExecutorConfig.enrichers`, called per response in enrichment pipeline. Extra data lands in `ResponseEnrichment.extra`.
+- `ResponseFilter` interface + `StatusCodeFilter`, `RegexFilter`, `Match` (OR/AND short-circuit) — ready for inclusion/exclusion in batch pipelines.
+- `BearerAuth` — stateless `BearerAuth('token')` strategy for `AuthInterceptor`. Legacy `tokenProvider`/`tokenRefresher` marked `@Deprecated`.
+- `stderrLog` — log helper writing to `dart:io` stderr (fallback to `print` on Web). `LoggingInterceptor` now defaults to `stderrLog`, keeping stdout clean for JSONL/result output.
+- `ClientConfig.fromJson()` + `mergeEnv()` — load config from JSON map, override from `GO_HTTP_*` env vars.
+- `PortSpec.parse('http:8080,https:443')` — nmap-style scheme→port mapping.
+- `Headers.parse('Content-Type: application/json')` factory — one or more `Key: Value` lines.
+- `ClientConfig.copyWith()` — produce a modified copy preserving other fields.
+- Two-phase file writing — `ResultSink.jsonl()`/`.csv()` write to a temp file (`O_EXCL` + incrementing suffix) and atomically rename on `close()`, preventing parallel-writer corruption.
+- `ClientConfig.minTlsVersion` / `maxTlsVersion` — reserved config surface for TLS version constraints (forward-compat, SDK pending).
+- `ResultCallback` typedef + `List<ResultCallback>? onResults` param on `BatchExecutor.run()` — chain multiple callbacks alongside legacy `onResult`.
+
 ## [0.2.1] - 2026-07-13
 
 ### Added

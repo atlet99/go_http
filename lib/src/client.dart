@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'body_encoding.dart';
 import 'cancel/cancellation_token.dart';
 import 'codec/decoder.dart';
+import 'config.dart';
 import 'cookie/cookie_store.dart';
 import 'cookie/memory_cookie_store.dart';
+import 'enrichment.dart';
 import 'errors.dart';
 import 'event_hooks.dart';
 import 'headers.dart';
@@ -32,49 +35,78 @@ import 'url.dart';
 /// storage, timeouts and metrics on top of a pluggable [Transport].
 class GoHttpClient {
   GoHttpClient({
+    ClientConfig? clientConfig,
+    ExecutorConfig? executorConfig,
     Transport? transport,
     List<Interceptor> interceptors = const [],
     RetryPolicy? retryPolicy,
     RedirectPolicy? redirectPolicy,
     CookieStore? cookieStore,
     Timeout? timeout,
-    Duration connectTimeout = const Duration(seconds: 10),
-    Duration sendTimeout = const Duration(seconds: 30),
-    Duration receiveTimeout = const Duration(seconds: 30),
-    bool followRedirects = true,
-    int maxRedirects = 5,
-    bool autoDecompress = true,
-    int maxAuthRetries = 1,
+    Duration? connectTimeout,
+    Duration? sendTimeout,
+    Duration? receiveTimeout,
+    bool? followRedirects,
+    int? maxRedirects,
+    bool? autoDecompress,
+    int? maxAuthRetries,
     this.baseUrl,
     ProxyMounts? proxyMounts,
-    bool trustEnv = true,
+    bool? trustEnv,
     Object? verify,
-    Map<String, String> defaultHeaders = const {
-      'accept-encoding': 'gzip',
-    },
+    Map<String, String>? defaultHeaders,
     MetricsSink? metrics,
     EventHooks? eventHooks,
   })  : _transport = transport ??
+            clientConfig?.transport ??
             _createDefaultTransport(
-              proxyMounts: proxyMounts,
-              trustEnv: trustEnv,
-              verify: verify,
+              proxyMounts: proxyMounts ?? clientConfig?.proxyMounts,
+              trustEnv: trustEnv ?? clientConfig?.trustEnv ?? true,
+              verify: verify ?? clientConfig?.verify,
+              minTlsVersion: clientConfig?.minTlsVersion,
+              maxTlsVersion: clientConfig?.maxTlsVersion,
             ),
-        _interceptors = List.from(interceptors),
-        _retryPolicy = retryPolicy ?? DefaultRetryPolicy(),
-        _redirectPolicy = redirectPolicy ?? DefaultRedirectPolicy(),
-        _cookieStore = cookieStore ?? MemoryCookieStore(),
-        _timeout = timeout,
-        _connectTimeout = connectTimeout,
-        _sendTimeout = sendTimeout,
-        _receiveTimeout = receiveTimeout,
-        _followRedirects = followRedirects,
-        _maxRedirects = maxRedirects,
-        _autoDecompress = autoDecompress,
-        _maxAuthRetries = maxAuthRetries,
-        _defaultHeaders = Headers(defaultHeaders),
-        _metrics = metrics,
-        _eventHooks = eventHooks;
+        _interceptors = List.from(
+          interceptors.isNotEmpty
+              ? interceptors
+              : executorConfig?.interceptors ?? const [],
+        ),
+        _retryPolicy =
+            retryPolicy ?? clientConfig?.retryPolicy ?? DefaultRetryPolicy(),
+        _redirectPolicy = redirectPolicy ??
+            clientConfig?.redirectPolicy ??
+            DefaultRedirectPolicy(),
+        _cookieStore =
+            cookieStore ?? clientConfig?.cookieStore ?? MemoryCookieStore(),
+        _timeout = timeout ?? clientConfig?.timeout,
+        _connectTimeout = connectTimeout ??
+            clientConfig?.connectTimeout ??
+            const Duration(seconds: 10),
+        _sendTimeout = sendTimeout ??
+            clientConfig?.sendTimeout ??
+            const Duration(seconds: 30),
+        _receiveTimeout = receiveTimeout ??
+            clientConfig?.receiveTimeout ??
+            const Duration(seconds: 30),
+        _followRedirects =
+            followRedirects ?? clientConfig?.followRedirects ?? true,
+        _maxRedirects = maxRedirects ?? clientConfig?.maxRedirects ?? 5,
+        _autoDecompress =
+            autoDecompress ?? clientConfig?.autoDecompress ?? true,
+        _maxAuthRetries = maxAuthRetries ?? clientConfig?.maxAuthRetries ?? 1,
+        _defaultHeaders = Headers(
+          defaultHeaders ??
+              clientConfig?.defaultHeaders ??
+              const {'accept-encoding': 'gzip, deflate, br'},
+        ),
+        _metrics = metrics ?? executorConfig?.metrics,
+        _eventHooks = eventHooks ?? executorConfig?.eventHooks,
+        _enrichers = executorConfig?.enrichers ?? const [];
+
+  /// Default configuration preset — explicit constructor defaults as a
+  /// factory, useful for JSON/YAML deserialization and env-merge patterns.
+  static GoHttpClient defaults() =>
+      GoHttpClient(clientConfig: ClientConfig.defaults);
 
   final Transport _transport;
   final List<Interceptor> _interceptors;
@@ -92,6 +124,11 @@ class GoHttpClient {
   final Headers _defaultHeaders;
   final MetricsSink? _metrics;
   EventHooks? _eventHooks;
+  final List<ResponseEnricher> _enrichers;
+
+  int _inFlight = 0;
+  bool _isShuttingDown = false;
+  Completer<void>? _shutdownCompleter;
 
   /// Hot-swappable request/response callbacks (see [EventHooks]).
   set eventHooks(EventHooks? hooks) => _eventHooks = hooks;
@@ -103,12 +140,16 @@ class GoHttpClient {
     ProxyMounts? proxyMounts,
     bool trustEnv = true,
     Object? verify,
+    Object? minTlsVersion,
+    Object? maxTlsVersion,
   }) {
     if (isIoPlatform) {
       return IoTransport(
         proxyMounts: proxyMounts,
         trustEnv: trustEnv,
         verify: verify,
+        minTlsVersion: minTlsVersion,
+        maxTlsVersion: maxTlsVersion,
       );
     } else {
       return WebTransport();
@@ -323,6 +364,31 @@ class GoHttpClient {
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
   }) async {
+    if (_isShuttingDown) {
+      throw ClientShutdownError(request: req);
+    }
+    _inFlight++;
+    try {
+      return await _sendWithRetry<T>(
+        req,
+        cancel: cancel,
+        decoder: decoder,
+        onProgress: onProgress,
+      );
+    } finally {
+      _inFlight--;
+      if (_isShuttingDown && _inFlight == 0) {
+        _shutdownCompleter?.complete();
+      }
+    }
+  }
+
+  Future<Response<T>> _sendWithRetry<T>(
+    Request req, {
+    CancellationToken? cancel,
+    Decoder<T>? decoder,
+    ProgressCallback? onProgress,
+  }) async {
     var request = req;
 
     // Run request interceptors once per send (re-run on auth retry below).
@@ -360,6 +426,12 @@ class GoHttpClient {
           hook(request);
         }
 
+        // Per-request delay (rate-limiting / polite crawling)
+        final reqDelay = request.options?.delay;
+        if (reqDelay != null && reqDelay > Duration.zero) {
+          await Future.delayed(reqDelay);
+        }
+
         final response = await _transport.send(
           request,
           cancel: cancel,
@@ -394,12 +466,36 @@ class GoHttpClient {
         // Metrics: request end
         _metrics?.onRequestEnd(request, resp);
 
+        // Enforce byte limits (check raw bytes before application-level decode)
+        final rawBytes = resp.data;
+        if (rawBytes != null && rawBytes is Uint8List) {
+          final len = rawBytes.length;
+          final maxRead = request.options?.maxBytesToRead;
+          if (maxRead != null && len > maxRead) {
+            throw MaxBytesReadError(
+              request: request,
+              maxBytes: maxRead,
+              actualBytes: len,
+            );
+          }
+          final maxSave = request.options?.maxBytesToSave;
+          if (maxSave != null && len > maxSave) {
+            throw MaxBytesReadError(
+              request: request,
+              maxBytes: maxSave,
+              actualBytes: len,
+            );
+          }
+        }
+
         // Decode if a decoder was provided, otherwise return the raw bytes.
         // Re-wrap in a properly-typed Response<T> (avoids an unsafe cast).
         final decoded = decoder != null ? decoder.decode(resp.data) : resp.data;
+        final enrichment = await _buildEnrichment(request, resp);
         return resp.copyWith<T>(
           data: decoded,
           elapsed: stopwatch.elapsed,
+          enrichment: enrichment,
         );
       } catch (e) {
         // Build a typed HttpError
@@ -557,11 +653,73 @@ class GoHttpClient {
     return request.copyWith(headers: headers, body: mp.render());
   }
 
+  /// Build enrichment data after a response is received.
+  Future<ResponseEnrichment> _buildEnrichment(
+    Request req,
+    Response resp,
+  ) async {
+    Map<String, dynamic>? extra;
+    if (_enrichers.isNotEmpty) {
+      extra = {};
+      for (final enricher in _enrichers) {
+        final values = await enricher.enrich(resp);
+        extra.addAll(values);
+      }
+      if (extra.isEmpty) {
+        extra = null;
+      }
+    }
+    return ResponseEnrichment(
+      trace: req.trace,
+      remoteAddress: resp.remoteAddress,
+      tlsInfo: resp.tlsInfo,
+      extra: extra,
+    );
+  }
+
   /// Expose the redirect policy (used by tests / advanced configuration)
   RedirectPolicy? get redirectPolicy => _redirectPolicy;
 
-  /// Dispose resources
+  /// Validate client configuration. Returns a list of problems found;
+  /// empty list means the configuration is valid.
+  /// ponytail: basic checks — add more as needed.
+  List<ValidationError> validate() {
+    final errors = <ValidationError>[];
+    if (_connectTimeout <= Duration.zero) {
+      errors.add(const ValidationError('connectTimeout', 'must be positive'));
+    }
+    if (_sendTimeout <= Duration.zero) {
+      errors.add(const ValidationError('sendTimeout', 'must be positive'));
+    }
+    if (_receiveTimeout <= Duration.zero) {
+      errors.add(const ValidationError('receiveTimeout', 'must be positive'));
+    }
+    if (_maxRedirects < 0) {
+      errors.add(const ValidationError('maxRedirects', 'must be non-negative'));
+    }
+    if (_maxAuthRetries < 0) {
+      errors
+          .add(const ValidationError('maxAuthRetries', 'must be non-negative'));
+    }
+    return errors;
+  }
+
+  /// Soft shutdown: stop accepting new requests, wait for in-flight to finish.
+  /// Returns a future that completes once all active requests complete.
+  Future<void> shutdown() async {
+    _isShuttingDown = true;
+    if (_inFlight == 0) {
+      return;
+    }
+    _shutdownCompleter ??= Completer<void>();
+    return _shutdownCompleter!.future;
+  }
+
+  /// Hard dispose: force-close transport and all in-flight connections.
   void dispose() {
+    _isShuttingDown = true;
     _transport.dispose();
+    _shutdownCompleter?.complete();
+    _shutdownCompleter = null;
   }
 }

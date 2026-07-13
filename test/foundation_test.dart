@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:go_http/go_http.dart';
 import 'package:test/test.dart' hide Timeout;
 
+import 'fake_transport.dart';
+
 void main() {
   group('Timeout', () {
     test('all() sets every phase to the same duration', () {
@@ -176,6 +178,41 @@ void main() {
       );
       expect(res.charsetEncoding, 'latin1');
     });
+
+    test('text strips UTF-8 BOM', () {
+      final bom = Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode('abc')]);
+      expect(responseWith(data: bom).text, 'abc');
+    });
+
+    test('text decodes cp1251', () {
+      // cp1251 bytes for "Привет"
+      final bytes = Uint8List.fromList([
+        0xCF,
+        0xF0,
+        0xE8,
+        0xE2,
+        0xE5,
+        0xF2,
+      ]);
+      final res = responseWith(data: bytes);
+      res.encoding = 'cp1251';
+      expect(res.text, 'Привет');
+    });
+
+    test('text decodes koi8-r', () {
+      // KOI8-R bytes for "Привет"
+      final bytes = Uint8List.fromList([
+        0xF0,
+        0xD2,
+        0xC9,
+        0xD7,
+        0xC5,
+        0xD4,
+      ]);
+      final res = responseWith(data: bytes);
+      res.encoding = 'koi8-r';
+      expect(res.text, 'Привет');
+    });
   });
 
   group('Headers', () {
@@ -214,6 +251,144 @@ void main() {
       final h = Headers({'Authorization': 'secret', 'X-Other': 'v'});
       expect(h.toString(), contains('[secure]'));
       expect(h.toString(), isNot(contains('secret')));
+    });
+  });
+
+  group('Headers.parse', () {
+    test('parses raw header strings', () {
+      final h = Headers.parse('Content-Type: text/html\nX-Custom: val\r\n');
+      expect(h['content-type'], 'text/html');
+      expect(h['x-custom'], 'val');
+    });
+
+    test('parses with status line', () {
+      final h = Headers.parse('HTTP/1.1 200 OK\nContent-Length: 42\n');
+      expect(h['content-length'], '42');
+    });
+
+    test('empty string yields empty headers', () {
+      expect(Headers.parse('').length, 0);
+    });
+  });
+
+  group('PortSpec', () {
+    test('parses scheme:port pairs', () {
+      final spec = PortSpec.parse('http:8080,https:8443');
+      expect(spec.ports['http'], 8080);
+      expect(spec.ports['https'], 8443);
+    });
+
+    test('skips invalid entries', () {
+      final spec = PortSpec.parse('http:0,https:99999');
+      expect(spec.ports, isEmpty);
+    });
+  });
+
+  group('stderrLog', () {
+    test('is a function that can be called', () {
+      stderrLog('hello');
+      stderrLog(42);
+      // no crash = pass
+    });
+  });
+
+  group('ClientConfig', () {
+    test('defaults carries sensible defaults', () {
+      expect(ClientConfig.defaults.connectTimeout, const Duration(seconds: 10));
+      expect(ClientConfig.defaults.sendTimeout, const Duration(seconds: 30));
+      expect(ClientConfig.defaults.receiveTimeout, const Duration(seconds: 30));
+      expect(ClientConfig.defaults.followRedirects, isTrue);
+      expect(ClientConfig.defaults.maxRedirects, 5);
+      expect(ClientConfig.defaults.autoDecompress, isTrue);
+      expect(ClientConfig.defaults.maxAuthRetries, 1);
+      expect(ClientConfig.defaults.trustEnv, isTrue);
+      expect(
+        ClientConfig.defaults.defaultHeaders['accept-encoding'],
+        'gzip, deflate, br',
+      );
+    });
+
+    test('validate returns empty for defaults', () {
+      expect(ClientConfig.defaults.validate(), isEmpty);
+    });
+
+    test('validate catches negative maxRedirects', () {
+      const cfg = ClientConfig(maxRedirects: -1);
+      final errors = cfg.validate();
+      expect(errors.any((e) => e.field == 'maxRedirects'), isTrue);
+    });
+
+    test('validate catches zero connectTimeout', () {
+      const cfg = ClientConfig(connectTimeout: Duration.zero);
+      final errors = cfg.validate();
+      expect(errors.any((e) => e.field == 'connectTimeout'), isTrue);
+    });
+
+    test('const can be created with overrides', () {
+      const cfg = ClientConfig(followRedirects: false, maxRedirects: 0);
+      expect(cfg.followRedirects, isFalse);
+      expect(cfg.maxRedirects, 0);
+    });
+  });
+
+  group('ExecutorConfig', () {
+    test('defaults has no interceptors', () {
+      expect(ExecutorConfig.defaults.interceptors, isEmpty);
+    });
+
+    test('defaults validate returns empty', () {
+      expect(ExecutorConfig.defaults.validate(), isEmpty);
+    });
+
+    test('const with interceptors', () {
+      final counter = CountingInterceptor();
+      const cfg = ExecutorConfig();
+      expect(cfg.interceptors, isEmpty);
+      final cfg2 = ExecutorConfig(interceptors: [counter]);
+      expect(cfg2.interceptors.length, 1);
+    });
+  });
+
+  group('GoHttpClient config wiring', () {
+    test('clientConfig is used as base configuration', () async {
+      const cfg = ClientConfig(
+        connectTimeout: Duration(seconds: 2),
+        sendTimeout: Duration(seconds: 3),
+      );
+      final transport = FakeTransport([ok(200)]);
+      final client = GoHttpClient(clientConfig: cfg, transport: transport);
+      final res = await client.get<Uint8List>(Uri.parse('https://x.test'));
+      expect(res.statusCode, 200);
+      client.dispose();
+    });
+
+    test('individual params override clientConfig', () async {
+      const cfg = ClientConfig(followRedirects: false);
+      final transport = FakeTransport([ok(200)]);
+      final client = GoHttpClient(
+        clientConfig: cfg,
+        transport: transport,
+        followRedirects: true,
+      );
+      final res = await client.get<Uint8List>(Uri.parse('https://x.test'));
+      expect(res.statusCode, 200);
+      client.dispose();
+    });
+
+    test('executorConfig provides interceptors', () async {
+      final counter = CountingInterceptor();
+      final transport = FakeTransport([ok(200)]);
+      final client = GoHttpClient(
+        executorConfig: ExecutorConfig(interceptors: [counter]),
+        transport: transport,
+      );
+      await client.get<Uint8List>(Uri.parse('https://x.test'));
+      expect(counter.onRequestCount, 1);
+      client.dispose();
+    });
+
+    test('GoHttpClient.defaults() creates a client without throwing', () {
+      expect(() => GoHttpClient.defaults(), isNot(throwsA(anything)));
     });
   });
 }

@@ -1,4 +1,5 @@
 import '../cancel/cancellation_token.dart';
+import '../dns_resolver.dart';
 import '../proxy.dart';
 import '../request.dart';
 import '../response.dart';
@@ -10,10 +11,17 @@ class IoTransport implements Transport {
     dynamic httpClient,
     int maxConnectionsPerHost = 6,
     bool autoDecompress = true,
+    this.tryHttpOnHttpsError = false,
+    this.resolver,
     ProxyMounts? proxyMounts,
     bool trustEnv = true,
     Object? verify,
+    Object? minTlsVersion,
+    Object? maxTlsVersion,
   });
+
+  final bool tryHttpOnHttpsError;
+  final DnsResolver? resolver;
 
   @override
   Future<Response> send(

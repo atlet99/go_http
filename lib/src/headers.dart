@@ -20,6 +20,32 @@ class Headers {
 
   Headers._(this._items);
 
+  /// Parses one or more `Key: Value` lines (LF-separated).
+  ///
+  /// ```dart
+  /// final h = Headers.parse('Content-Type: application/json\nX-Custom: foo');
+  /// ```
+  factory Headers.parse(String input) {
+    final entries = <MapEntry<String, String>>[];
+    for (final line in input.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) {
+        continue;
+      }
+      final colon = trimmed.indexOf(':');
+      if (colon < 1) {
+        continue;
+      }
+      entries.add(
+        MapEntry(
+          trimmed.substring(0, colon).trim().toLowerCase(),
+          trimmed.substring(colon + 1).trim(),
+        ),
+      );
+    }
+    return Headers.fromEntries(entries);
+  }
+
   static List<MapEntry<String, String>> _entriesFromMap(Object source) {
     final map = source as Map<Object?, Object?>;
     return map.entries

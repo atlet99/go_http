@@ -110,5 +110,11 @@ void main() {
       expect(res.statusCode, 200);
       client.dispose();
     });
+
+    test('BearerAuth sets Authorization header', () {
+      final req = Request(method: HttpMethod.get, uri: Uri.parse('https://x.test'));
+      final result = BearerAuth('tok').apply(req);
+      expect(result.headers['authorization'], 'Bearer tok');
+    });
   });
 }

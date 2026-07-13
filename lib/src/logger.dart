@@ -1,8 +1,5 @@
-/// Function used to emit log lines.
-///
-/// Defaults to [print] when not provided, allowing applications to redirect
-/// output (e.g. to a file or a structured logger) without subclassing.
+export 'logger_stub.dart' if (dart.library.io) 'logger_io.dart';
+
 typedef Logger = void Function(Object? value);
 
-/// Default logger: prints to the console.
 void defaultLog(Object? value) => print(value);

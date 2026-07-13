@@ -42,6 +42,18 @@ class FunctionAuth extends Auth {
   Request apply(Request request) => transform(request);
 }
 
+/// `Bearer` auth — `Authorization: Bearer <token>`.
+class BearerAuth extends Auth {
+  BearerAuth(this.token);
+
+  final String token;
+
+  @override
+  Request apply(Request request) => request.copyWith(
+        headers: request.headers.copy()..['Authorization'] = 'Bearer $token',
+      );
+}
+
 /// `Digest` auth — RFC 2617 / 7616 (MD5 / SHA-256, qop, cnonce,
 /// nonce-count). The first request goes out without auth; the interceptor
 /// reads the `401` `WWW-Authenticate` challenge and calls [buildHeader].
