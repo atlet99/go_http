@@ -204,6 +204,16 @@ class IoTransport implements Transport {
           ioRequest.add(request.body as Uint8List);
         } else if (request.body is List<int>) {
           ioRequest.add(request.body as List<int>);
+        } else if (request.body is Stream<List<int>>) {
+          try {
+            await ioRequest.addStream(request.body as Stream<List<int>>);
+          } on HttpException catch (e) {
+            throw NetworkError(
+              request: request,
+              message: 'Stream error: ${e.message}',
+              originalError: e,
+            );
+          }
         } else {
           throw ArgumentError(
             'Unsupported body type: ${request.body.runtimeType}',

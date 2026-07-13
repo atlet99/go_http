@@ -462,6 +462,17 @@ void main() {
     });
   });
 
+  group('Request streaming body', () {
+    test('toString shows <stream> for Stream body', () {
+      final req = Request(
+        method: HttpMethod.post,
+        uri: Uri.parse('https://example.com/upload'),
+        body: Stream<List<int>>.fromIterable([utf8.encode('data')]),
+      );
+      expect(req.toString(), contains('<stream>'));
+    });
+  });
+
   group('stderrLog', () {
     test('is a function that can be called', () {
       stderrLog('hello');

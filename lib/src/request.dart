@@ -199,6 +199,9 @@ class Request {
       final b = body as List<int>;
       return '${b.length} bytes';
     }
+    if (body is Stream<List<int>>) {
+      return '<stream>';
+    }
     return body.runtimeType.toString();
   }
 }
