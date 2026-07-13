@@ -3,6 +3,7 @@
 /// Built for control, cancellation and consistency.
 library go_http;
 
+export 'src/api.dart';
 export 'src/auth.dart';
 export 'src/batch.dart';
 export 'src/body_encoding.dart';
