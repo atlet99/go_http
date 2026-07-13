@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'cookie/cookie_store.dart';
 import 'enrichment.dart';
 import 'event_hooks.dart';
@@ -78,6 +80,126 @@ class ClientConfig {
       errors.add(const ValidationError('maxAuthRetries', 'must be non-negative'));
     }
     return errors;
+  }
+
+  /// Creates from a JSON/Map representation.
+  ///
+  /// Timeout fields accept either an int (milliseconds) or a Duration.
+  factory ClientConfig.fromJson(Map<String, dynamic> json) {
+    Duration? dur(String key) {
+      final v = json[key];
+      if (v is Duration) {
+        return v;
+      }
+      if (v is int) {
+        return Duration(milliseconds: v);
+      }
+      return null;
+    }
+
+    return ClientConfig(
+      connectTimeout: dur('connectTimeout') ?? const Duration(seconds: 10),
+      sendTimeout: dur('sendTimeout') ?? const Duration(seconds: 30),
+      receiveTimeout: dur('receiveTimeout') ?? const Duration(seconds: 30),
+      followRedirects: json['followRedirects'] as bool? ?? true,
+      maxRedirects: json['maxRedirects'] as int? ?? 5,
+      autoDecompress: json['autoDecompress'] as bool? ?? true,
+      maxAuthRetries: json['maxAuthRetries'] as int? ?? 1,
+      trustEnv: json['trustEnv'] as bool? ?? true,
+      defaultHeaders: json['defaultHeaders'] is Map
+          ? Map<String, String>.from(json['defaultHeaders'] as Map)
+          : const {'accept-encoding': 'gzip, deflate, br'},
+      verify: json['verify'],
+    );
+  }
+
+  /// Returns a copy with the given fields replaced.
+  ClientConfig copyWith({
+    Transport? transport,
+    Timeout? timeout,
+    Duration? connectTimeout,
+    Duration? sendTimeout,
+    Duration? receiveTimeout,
+    RetryPolicy? retryPolicy,
+    RedirectPolicy? redirectPolicy,
+    bool? followRedirects,
+    int? maxRedirects,
+    bool? autoDecompress,
+    int? maxAuthRetries,
+    Object? verify,
+    ProxyMounts? proxyMounts,
+    bool? trustEnv,
+    Map<String, String>? defaultHeaders,
+    CookieStore? cookieStore,
+  }) =>
+      ClientConfig(
+        transport: transport ?? this.transport,
+        timeout: timeout ?? this.timeout,
+        connectTimeout: connectTimeout ?? this.connectTimeout,
+        sendTimeout: sendTimeout ?? this.sendTimeout,
+        receiveTimeout: receiveTimeout ?? this.receiveTimeout,
+        retryPolicy: retryPolicy ?? this.retryPolicy,
+        redirectPolicy: redirectPolicy ?? this.redirectPolicy,
+        followRedirects: followRedirects ?? this.followRedirects,
+        maxRedirects: maxRedirects ?? this.maxRedirects,
+        autoDecompress: autoDecompress ?? this.autoDecompress,
+        maxAuthRetries: maxAuthRetries ?? this.maxAuthRetries,
+        verify: verify ?? this.verify,
+        proxyMounts: proxyMounts ?? this.proxyMounts,
+        trustEnv: trustEnv ?? this.trustEnv,
+        defaultHeaders: defaultHeaders ?? this.defaultHeaders,
+        cookieStore: cookieStore ?? this.cookieStore,
+      );
+
+  /// Returns a new config with fields overridden by environment variables:
+  ///
+  /// - `GO_HTTP_CONNECT_TIMEOUT` (seconds)
+  /// - `GO_HTTP_SEND_TIMEOUT` (seconds)
+  /// - `GO_HTTP_RECEIVE_TIMEOUT` (seconds)
+  /// - `GO_HTTP_MAX_REDIRECTS`
+  /// - `GO_HTTP_VERIFY` (`"0"` / `"false"` → `false`)
+  static ClientConfig mergeEnv([ClientConfig? base]) {
+    var c = base ?? defaults;
+    final env = Platform.environment;
+
+    final connectStr = env['GO_HTTP_CONNECT_TIMEOUT'];
+    if (connectStr != null) {
+      final secs = int.tryParse(connectStr);
+      if (secs != null && secs > 0) {
+        c = c.copyWith(connectTimeout: Duration(seconds: secs));
+      }
+    }
+
+    final sendStr = env['GO_HTTP_SEND_TIMEOUT'];
+    if (sendStr != null) {
+      final secs = int.tryParse(sendStr);
+      if (secs != null && secs > 0) {
+        c = c.copyWith(sendTimeout: Duration(seconds: secs));
+      }
+    }
+
+    final recvStr = env['GO_HTTP_RECEIVE_TIMEOUT'];
+    if (recvStr != null) {
+      final secs = int.tryParse(recvStr);
+      if (secs != null && secs > 0) {
+        c = c.copyWith(receiveTimeout: Duration(seconds: secs));
+      }
+    }
+
+    final maxR = env['GO_HTTP_MAX_REDIRECTS'];
+    if (maxR != null) {
+      final n = int.tryParse(maxR);
+      if (n != null && n >= 0) {
+        c = c.copyWith(maxRedirects: n);
+      }
+    }
+
+    final verifyStr = env['GO_HTTP_VERIFY'];
+    if (verifyStr != null) {
+      c = c.copyWith(verify: verifyStr == '0' || verifyStr == 'false' ? false : verifyStr);
+    }
+
+    return c;
   }
 
   static const ClientConfig defaults = ClientConfig();
