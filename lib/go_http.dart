@@ -14,6 +14,7 @@ export 'src/codec/decoder.dart';
 export 'src/codec/json_decoder.dart';
 export 'src/cookie/cookie_store.dart';
 export 'src/cookie/memory_cookie_store.dart';
+export 'src/decoders_stub.dart' if (dart.library.io) 'src/decoders.dart';
 export 'src/errors.dart';
 export 'src/event_hooks.dart';
 export 'src/headers.dart';

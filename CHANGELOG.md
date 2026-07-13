@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Proxy support: `Proxy` (`http`/`https`/`socks5`/`direct`, parse + masked `toString`), `URLPattern` (wildcard `*` host, `all://` scheme, `specificity`), `ProxyMounts` (most-specific route wins, `null` = explicit direct), and `buildSecurityContext` honoring explicit `verify` / `SSL_CERT_FILE` env. `GoHttpClient` takes `proxyMounts`, `trustEnv`, `verify`; native transport wires `findProxy`, `badCertificateCallback`, and a per-client `SecurityContext`.
 - `Result<T>` (never-throw batch outcome: `Result.ok`/`Result.fail`) and pluggable `ResultSink` SPI with `jsonl`/`csv` factories; CSV output sanitizes formula-injection cells (`=`,`+`,`-`,`@`).
 - Auth SPI: `Auth` strategy (`BasicAuth`, `FunctionAuth`) applied on the request path, plus `DigestAuth` (RFC 2617/7616, MD5/SHA-256, qop, cnonce, nonce-count) driven by the interceptor's 401 `WWW-Authenticate` challenge via the existing retry path. `AuthInterceptor` now takes an `auth` strategy and still supports the legacy Bearer `tokenProvider`/`tokenRefresher` flow.
+- Body encoding: `encodeRequest` dispatch ladder — `json` → `application/json`, `Map` → `application/x-www-form-urlencoded`, raw `String`/bytes/`Multipart` pass through. `post`/`put`/`patch`/`delete` route their `data`/`json` through it.
+- Content decoder registry: `ContentDecoder` SPI + `contentDecoders` map (gzip/deflate always, brotli/zstd optional via `registerBrotli`/`registerZstd`), `decodeContentEncoding` for stacked encodings, deflate-ambiguity fix (zlib → raw fallback). `IoTransport` now always sets `autoUncompress=false` and decodes manually. Default `accept-encoding` narrowed to `gzip`.
 
 ## [0.2.0] - 2026-07-12
 

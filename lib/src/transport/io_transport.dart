@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../cancel/cancellation_token.dart';
+import '../decoders.dart';
 import '../errors.dart';
 import '../headers.dart';
 import '../proxy.dart';
@@ -22,7 +23,6 @@ class IoTransport implements Transport {
   }) : _httpClient = httpClient ??
             _buildClient(
               maxConnectionsPerHost,
-              autoDecompress,
               proxyMounts,
               trustEnv,
               verify,
@@ -153,11 +153,22 @@ class IoTransport implements Transport {
         }
       });
 
+      // Manual content-encoding decode (autoUncompress is always false;
+      // dart:io compression is disabled so we control decoding).
+      final decodedBody = shouldDecompress
+          ? Uint8List.fromList(
+              decodeContentEncoding(body, headers['content-encoding']),
+            )
+          : body;
+      if (shouldDecompress) {
+        headers.remove('content-encoding');
+      }
+
       return Response(
         request: request,
         statusCode: ioResponse.statusCode,
         headers: headers,
-        data: body,
+        data: decodedBody,
         statusMessage: ioResponse.reasonPhrase,
       );
     } on HttpError {
@@ -195,14 +206,13 @@ class IoTransport implements Transport {
 
   static HttpClient _buildClient(
     int maxConnectionsPerHost,
-    bool autoDecompress,
     ProxyMounts? proxyMounts,
     bool trustEnv,
     Object? verify,
   ) {
     final client = HttpClient(context: buildSecurityContext(verify, trustEnv))
       ..maxConnectionsPerHost = maxConnectionsPerHost
-      ..autoUncompress = autoDecompress;
+      ..autoUncompress = false;
 
     if (verify == false) {
       // No certificate verification.
