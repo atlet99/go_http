@@ -16,6 +16,8 @@ class IoTransport implements Transport {
     ProxyMounts? proxyMounts,
     bool trustEnv = true,
     Object? verify,
+    Object? minTlsVersion,
+    Object? maxTlsVersion,
   });
 
   final bool tryHttpOnHttpsError;

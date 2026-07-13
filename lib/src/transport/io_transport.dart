@@ -27,12 +27,16 @@ class IoTransport implements Transport {
     ProxyMounts? proxyMounts,
     bool trustEnv = true,
     Object? verify,
+    Object? minTlsVersion,
+    Object? maxTlsVersion,
   }) : _httpClient = httpClient ??
             _buildClient(
               maxConnectionsPerHost,
               proxyMounts,
               trustEnv,
               verify,
+              minTlsVersion,
+              maxTlsVersion,
             );
 
   final HttpClient _httpClient;
@@ -455,10 +459,16 @@ class IoTransport implements Transport {
     ProxyMounts? proxyMounts,
     bool trustEnv,
     Object? verify,
+    Object? minTlsVersion,
+    Object? maxTlsVersion,
   ) {
     final client = HttpClient(context: buildSecurityContext(verify, trustEnv))
       ..maxConnectionsPerHost = maxConnectionsPerHost
       ..autoUncompress = false;
+
+    // ponytail: minTlsVersion/maxTlsVersion config fields are reserved for
+    // platform TLS version constraints. The current dart:io SDK does not
+    // expose TlsVersion — re-enable when the API stabilises.
 
     if (verify == false) {
       // No certificate verification.

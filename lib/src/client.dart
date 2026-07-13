@@ -63,6 +63,8 @@ class GoHttpClient {
               proxyMounts: proxyMounts ?? clientConfig?.proxyMounts,
               trustEnv: trustEnv ?? clientConfig?.trustEnv ?? true,
               verify: verify ?? clientConfig?.verify,
+              minTlsVersion: clientConfig?.minTlsVersion,
+              maxTlsVersion: clientConfig?.maxTlsVersion,
             ),
         _interceptors = List.from(
           interceptors.isNotEmpty
@@ -138,12 +140,16 @@ class GoHttpClient {
     ProxyMounts? proxyMounts,
     bool trustEnv = true,
     Object? verify,
+    Object? minTlsVersion,
+    Object? maxTlsVersion,
   }) {
     if (isIoPlatform) {
       return IoTransport(
         proxyMounts: proxyMounts,
         trustEnv: trustEnv,
         verify: verify,
+        minTlsVersion: minTlsVersion,
+        maxTlsVersion: maxTlsVersion,
       );
     } else {
       return WebTransport();

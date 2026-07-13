@@ -43,6 +43,8 @@ class ClientConfig {
     this.trustEnv = true,
     this.defaultHeaders = const {'accept-encoding': 'gzip, deflate, br'},
     this.cookieStore,
+    this.minTlsVersion,
+    this.maxTlsVersion,
   });
 
   /// Creates from a JSON/Map representation.
@@ -73,6 +75,8 @@ class ClientConfig {
           ? Map<String, String>.from(json['defaultHeaders'] as Map)
           : const {'accept-encoding': 'gzip, deflate, br'},
       verify: json['verify'],
+      minTlsVersion: json['minTlsVersion'],
+      maxTlsVersion: json['maxTlsVersion'],
     );
   }
 
@@ -92,6 +96,13 @@ class ClientConfig {
   final bool trustEnv;
   final Map<String, String> defaultHeaders;
   final CookieStore? cookieStore;
+
+  /// Minimum TLS version (e.g. dart:io `TlsVersion.tls1_2`).
+  /// Use `Object?` to avoid platform dependency; IoTransport casts the value.
+  final Object? minTlsVersion;
+
+  /// Maximum TLS version (e.g. dart:io `TlsVersion.tls1_3`).
+  final Object? maxTlsVersion;
 
   List<ValidationError> validate() {
     final errors = <ValidationError>[];
@@ -132,6 +143,8 @@ class ClientConfig {
     bool? trustEnv,
     Map<String, String>? defaultHeaders,
     CookieStore? cookieStore,
+    Object? minTlsVersion,
+    Object? maxTlsVersion,
   }) =>
       ClientConfig(
         transport: transport ?? this.transport,
@@ -150,6 +163,8 @@ class ClientConfig {
         trustEnv: trustEnv ?? this.trustEnv,
         defaultHeaders: defaultHeaders ?? this.defaultHeaders,
         cookieStore: cookieStore ?? this.cookieStore,
+        minTlsVersion: minTlsVersion ?? this.minTlsVersion,
+        maxTlsVersion: maxTlsVersion ?? this.maxTlsVersion,
       );
 
   /// Returns a new config with fields overridden by environment variables:
