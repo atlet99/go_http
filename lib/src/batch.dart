@@ -20,6 +20,7 @@ class BatchExecutor {
     List<Request> requests, {
     Decoder<T>? decoder,
     void Function(int done, int total)? onProgress,
+    void Function(Result<T>)? onResult,
   }) async {
     final total = requests.length;
     final out = <Result<T>>[];
@@ -30,7 +31,10 @@ class BatchExecutor {
       final batch = await Future.wait(
         slice.map((r) => _one<T>(r, decoder)),
       );
-      out.addAll(batch);
+      for (final r in batch) {
+        out.add(r);
+        onResult?.call(r);
+      }
       done += batch.length;
       onProgress?.call(done, total);
     }

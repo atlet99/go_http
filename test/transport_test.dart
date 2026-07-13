@@ -13,4 +13,17 @@ void main() {
       expect(t.tryHttpOnHttpsError, isTrue);
     });
   });
+
+  group('IoTransport DNS resolver', () {
+    test('resolver defaults to null', () {
+      final t = IoTransport();
+      expect(t.resolver, isNull);
+    });
+
+    test('resolver is settable', () {
+      final r = SystemDnsResolver();
+      final t = IoTransport(resolver: r);
+      expect(t.resolver, same(r));
+    });
+  });
 }

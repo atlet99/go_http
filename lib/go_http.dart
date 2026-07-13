@@ -17,6 +17,7 @@ export 'src/cookie/cookie_store.dart';
 export 'src/cookie/memory_cookie_store.dart';
 export 'src/decoders_stub.dart' if (dart.library.io) 'src/decoders.dart';
 export 'src/dialer.dart';
+export 'src/dns_resolver.dart';
 export 'src/enrichment.dart';
 export 'src/errors.dart';
 export 'src/event_hooks.dart';
