@@ -9,9 +9,11 @@ enum StatusCode {
   created(201, 'Created'),
   accepted(202, 'Accepted'),
   noContent(204, 'No Content'),
+  resetContent(205, 'Reset Content'),
   partialContent(206, 'Partial Content'),
 
   // 3xx
+  multipleChoices(300, 'Multiple Choices'),
   movedPermanently(301, 'Moved Permanently'),
   found(302, 'Found'),
   seeOther(303, 'See Other'),

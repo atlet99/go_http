@@ -177,4 +177,28 @@ class Request {
   String get methodString {
     return method.name.toUpperCase();
   }
+
+  @override
+  String toString() {
+    final buf = StringBuffer('$methodString $uri');
+    if (body != null) {
+      buf.write(' [body: ${_describeBody()}]');
+    }
+    return buf.toString();
+  }
+
+  Object _describeBody() {
+    if (body is String) {
+      final s = body as String;
+      if (s.length <= 100) {
+        return s;
+      }
+      return '${s.substring(0, 100)}... (${s.length} chars)';
+    }
+    if (body is List<int>) {
+      final b = body as List<int>;
+      return '${b.length} bytes';
+    }
+    return body.runtimeType.toString();
+  }
 }

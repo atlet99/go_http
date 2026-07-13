@@ -5,6 +5,7 @@ import 'enrichment.dart';
 import 'errors.dart';
 import 'headers.dart';
 import 'request.dart';
+import 'status_codes.dart';
 
 /// HTTP response representation.
 class Response<T> {
@@ -102,6 +103,15 @@ class Response<T> {
   /// Override the charset used by [text].
   set encoding(String value) {
     _encoding = value;
+  }
+
+  /// One-line log representation: `StatusCode.phrase` + method + URI.
+  /// Body is NOT included — prevents leaking sensitive data in logs.
+  @override
+  String toString() {
+    final s = StatusCode.fromCode(statusCode);
+    final phrase = s?.phrase ?? statusMessage ?? '';
+    return '$statusCode $phrase ${request.methodString} ${request.uri}';
   }
 
   /// A function that auto-detects encoding from raw body bytes.

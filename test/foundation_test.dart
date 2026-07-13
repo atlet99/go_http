@@ -66,6 +66,85 @@ void main() {
       expect(StatusCode.fromCode(200), StatusCode.ok);
       expect(StatusCode.fromCode(599), isNull);
     });
+
+    test('new codes', () {
+      expect(StatusCode.resetContent.code, 205);
+      expect(StatusCode.resetContent.phrase, 'Reset Content');
+      expect(StatusCode.multipleChoices.code, 300);
+      expect(StatusCode.multipleChoices.phrase, 'Multiple Choices');
+    });
+
+    test('Response toString single-line with status', () {
+      final req = Request(
+        method: HttpMethod.get,
+        uri: Uri.parse('https://example.com/api'),
+      );
+      final res = Response(
+        request: req,
+        statusCode: 200,
+        headers: {},
+        data: null,
+      );
+      final s = res.toString();
+      expect(s, '200 OK GET https://example.com/api');
+    });
+
+    test('Response toString unknown status falls back to statusMessage', () {
+      final req = Request(
+        method: HttpMethod.get,
+        uri: Uri.parse('https://example.com/'),
+      );
+      final res = Response(
+        request: req,
+        statusCode: 599,
+        headers: {},
+        data: null,
+        statusMessage: 'Network Connect Timeout Error',
+      );
+      final s = res.toString();
+      expect(s, contains('599'));
+      expect(s, contains('Network Connect Timeout Error'));
+    });
+
+    test('Request toString shows method and uri', () {
+      final req = Request(
+        method: HttpMethod.post,
+        uri: Uri.parse('https://example.com/submit'),
+      );
+      expect(req.toString(), 'POST https://example.com/submit');
+    });
+
+    test('Request toString with short body', () {
+      final req = Request(
+        method: HttpMethod.post,
+        uri: Uri.parse('https://example.com/login'),
+        body: 'user=admin',
+      );
+      final s = req.toString();
+      expect(s, contains('POST https://example.com/login'));
+      expect(s, contains('user=admin'));
+    });
+
+    test('Request toString masks large body', () {
+      final req = Request(
+        method: HttpMethod.post,
+        uri: Uri.parse('https://example.com/upload'),
+        body: 'x' * 200,
+      );
+      final s = req.toString();
+      expect(s, contains('...'));
+      expect(s, contains('200 chars'));
+    });
+
+    test('Request toString binary body shows byte count', () {
+      final req = Request(
+        method: HttpMethod.put,
+        uri: Uri.parse('https://example.com/file'),
+        body: Uint8List.fromList([1, 2, 3]),
+      );
+      final s = req.toString();
+      expect(s, contains('3 bytes'));
+    });
   });
 
   group('MockTransport', () {
