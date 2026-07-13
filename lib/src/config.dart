@@ -4,6 +4,7 @@ import 'cookie/cookie_store.dart';
 import 'enrichment.dart';
 import 'event_hooks.dart';
 import 'interceptors/interceptor.dart';
+import 'limits.dart';
 import 'metrics/metrics_sink.dart';
 import 'policy/redirect_policy.dart';
 import 'policy/retry_policy.dart';
@@ -38,6 +39,7 @@ class ClientConfig {
     this.maxRedirects = 5,
     this.autoDecompress = true,
     this.maxAuthRetries = 1,
+    this.limits,
     this.verify,
     this.proxyMounts,
     this.trustEnv = true,
@@ -62,6 +64,20 @@ class ClientConfig {
       return null;
     }
 
+    final limitsJson = json['limits'] as Map<String, dynamic>?;
+    final limits = limitsJson != null
+        ? Limits(
+            maxConnections: limitsJson['maxConnections'] as int? ?? 100,
+            maxKeepaliveConnections:
+                limitsJson['maxKeepaliveConnections'] as int? ?? 20,
+            keepaliveExpiry: limitsJson['keepaliveExpiry'] != null
+                ? Duration(
+                    milliseconds: limitsJson['keepaliveExpiry'] as int,
+                  )
+                : const Duration(seconds: 5),
+          )
+        : null;
+
     return ClientConfig(
       connectTimeout: dur('connectTimeout') ?? const Duration(seconds: 10),
       sendTimeout: dur('sendTimeout') ?? const Duration(seconds: 30),
@@ -70,6 +86,7 @@ class ClientConfig {
       maxRedirects: json['maxRedirects'] as int? ?? 5,
       autoDecompress: json['autoDecompress'] as bool? ?? true,
       maxAuthRetries: json['maxAuthRetries'] as int? ?? 1,
+      limits: limits,
       trustEnv: json['trustEnv'] as bool? ?? true,
       defaultHeaders: json['defaultHeaders'] is Map
           ? Map<String, String>.from(json['defaultHeaders'] as Map)
@@ -91,6 +108,7 @@ class ClientConfig {
   final int maxRedirects;
   final bool autoDecompress;
   final int maxAuthRetries;
+  final Limits? limits;
   final Object? verify;
   final ProxyMounts? proxyMounts;
   final bool trustEnv;
@@ -138,6 +156,7 @@ class ClientConfig {
     int? maxRedirects,
     bool? autoDecompress,
     int? maxAuthRetries,
+    Limits? limits,
     Object? verify,
     ProxyMounts? proxyMounts,
     bool? trustEnv,
@@ -158,6 +177,7 @@ class ClientConfig {
         maxRedirects: maxRedirects ?? this.maxRedirects,
         autoDecompress: autoDecompress ?? this.autoDecompress,
         maxAuthRetries: maxAuthRetries ?? this.maxAuthRetries,
+        limits: limits ?? this.limits,
         verify: verify ?? this.verify,
         proxyMounts: proxyMounts ?? this.proxyMounts,
         trustEnv: trustEnv ?? this.trustEnv,

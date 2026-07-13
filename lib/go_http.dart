@@ -28,6 +28,7 @@ export 'src/headers.dart';
 export 'src/interceptors/auth_interceptor.dart';
 export 'src/interceptors/interceptor.dart';
 export 'src/interceptors/logging_interceptor.dart';
+export 'src/limits.dart';
 export 'src/logger.dart';
 export 'src/metrics/console_metrics_sink.dart';
 export 'src/metrics/metrics_sink.dart';

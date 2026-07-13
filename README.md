@@ -456,6 +456,13 @@ response.history; // redirect chain
 response.elapsed; // full round-trip duration
 response.charsetEncoding; // from Content-Type
 response.encoding = 'windows-1251'; // override charset
+response.defaultEncoding = (bytes) => detect(bytes); // auto-detect hook
+response.numBytesDownloaded; // body byte count (after decompress)
+response.bytes; // body as Stream<List<int>>
+response.links['next']?['url']; // parsed Link: header
+response.nextRequest; // computed redirect request (when followRedirects:false)
+response.httpVersion; // "HTTP/1.1", "HTTP/2.0", etc.
+response.reasonPhrase; // alias for statusMessage
 ```
 
 ### MockTransport

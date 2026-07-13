@@ -9,10 +9,11 @@ import 'transport.dart';
 class IoTransport implements Transport {
   IoTransport({
     dynamic httpClient,
-    int maxConnectionsPerHost = 6,
+    int maxConnectionsPerHost = 100,
     bool autoDecompress = true,
     this.tryHttpOnHttpsError = false,
     this.resolver,
+    Duration? idleTimeout,
     ProxyMounts? proxyMounts,
     bool trustEnv = true,
     Object? verify,

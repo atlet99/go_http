@@ -20,10 +20,11 @@ import 'transport.dart';
 class IoTransport implements Transport {
   IoTransport({
     HttpClient? httpClient,
-    this.maxConnectionsPerHost = 6,
+    this.maxConnectionsPerHost = 100,
     this.autoDecompress = true,
     this.tryHttpOnHttpsError = false,
     this.resolver,
+    Duration? idleTimeout,
     ProxyMounts? proxyMounts,
     bool trustEnv = true,
     Object? verify,
@@ -32,6 +33,7 @@ class IoTransport implements Transport {
   }) : _httpClient = httpClient ??
             _buildClient(
               maxConnectionsPerHost,
+              idleTimeout,
               proxyMounts,
               trustEnv,
               verify,
@@ -456,6 +458,7 @@ class IoTransport implements Transport {
 
   static HttpClient _buildClient(
     int maxConnectionsPerHost,
+    Duration? idleTimeout,
     ProxyMounts? proxyMounts,
     bool trustEnv,
     Object? verify,
@@ -465,6 +468,10 @@ class IoTransport implements Transport {
     final client = HttpClient(context: buildSecurityContext(verify, trustEnv))
       ..maxConnectionsPerHost = maxConnectionsPerHost
       ..autoUncompress = false;
+
+    if (idleTimeout != null) {
+      client.idleTimeout = idleTimeout;
+    }
 
     // ponytail: minTlsVersion/maxTlsVersion config fields are reserved for
     // platform TLS version constraints. The current dart:io SDK does not

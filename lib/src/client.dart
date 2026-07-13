@@ -12,6 +12,7 @@ import 'errors.dart';
 import 'event_hooks.dart';
 import 'headers.dart';
 import 'interceptors/interceptor.dart';
+import 'limits.dart';
 import 'metrics/metrics_sink.dart';
 import 'multipart.dart';
 import 'policy/redirect_policy.dart';
@@ -65,6 +66,7 @@ class GoHttpClient {
               verify: verify ?? clientConfig?.verify,
               minTlsVersion: clientConfig?.minTlsVersion,
               maxTlsVersion: clientConfig?.maxTlsVersion,
+              limits: clientConfig?.limits,
             ),
         _interceptors = List.from(
           interceptors.isNotEmpty
@@ -142,6 +144,7 @@ class GoHttpClient {
     Object? verify,
     Object? minTlsVersion,
     Object? maxTlsVersion,
+    Limits? limits,
   }) {
     if (isIoPlatform) {
       return IoTransport(
@@ -150,6 +153,8 @@ class GoHttpClient {
         verify: verify,
         minTlsVersion: minTlsVersion,
         maxTlsVersion: maxTlsVersion,
+        maxConnectionsPerHost: limits?.maxConnections ?? 100,
+        idleTimeout: limits?.keepaliveExpiry,
       );
     } else {
       return WebTransport();
@@ -488,6 +493,19 @@ class GoHttpClient {
           }
         }
 
+        // Compute follow-up request for redirects when auto-follow is off
+        final nextReq = resp.hasRedirectLocation
+            ? _buildRedirectRequest(request, resp)
+            : null;
+
+        // Count downloaded bytes from the raw response body
+        final rawData = resp.data;
+        final bytesCount = rawData is Uint8List
+            ? rawData.length
+            : rawData is List<int>
+                ? rawData.length
+                : 0;
+
         // Decode if a decoder was provided, otherwise return the raw bytes.
         // Re-wrap in a properly-typed Response<T> (avoids an unsafe cast).
         final decoded = decoder != null ? decoder.decode(resp.data) : resp.data;
@@ -496,6 +514,8 @@ class GoHttpClient {
           data: decoded,
           elapsed: stopwatch.elapsed,
           enrichment: enrichment,
+          numBytesDownloaded: bytesCount,
+          nextRequest: nextReq,
         );
       } catch (e) {
         // Build a typed HttpError
@@ -675,6 +695,16 @@ class GoHttpClient {
       tlsInfo: resp.tlsInfo,
       extra: extra,
     );
+  }
+
+  /// Build the next request for a redirect response.
+  Request? _buildRedirectRequest(Request originalRequest, Response response) {
+    final location = response.headers['location'];
+    if (location == null || location.isEmpty) {
+      return null;
+    }
+    final redirectUri = originalRequest.uri.resolve(location);
+    return originalRequest.copyWith(uri: redirectUri, body: null);
   }
 
   /// Expose the redirect policy (used by tests / advanced configuration)
