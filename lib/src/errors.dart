@@ -274,6 +274,27 @@ class RequestNotRead extends StreamError {
   });
 }
 
+/// Response body exceeded the maximum number of bytes allowed by
+/// [RequestOptions.maxBytesToRead] or [RequestOptions.maxBytesToSave].
+class MaxBytesReadError extends RequestError {
+  MaxBytesReadError({
+    required super.request,
+    required this.maxBytes,
+    required this.actualBytes,
+    String? message,
+    super.originalError,
+  }) : super(
+          message: message ??
+              'Response body exceeds byte limit: $actualBytes > $maxBytes',
+        );
+
+  /// The configured byte limit that was exceeded.
+  final int maxBytes;
+
+  /// Actual byte size of the response body.
+  final int actualBytes;
+}
+
 /// Sentinel returned by [Interceptor.onError] to signal that the error was
 /// resolved (e.g. credentials were refreshed) and the request should be sent
 /// again.

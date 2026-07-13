@@ -126,8 +126,10 @@ class IoTransport implements Transport {
       // Read response body, reporting progress when requested
       final chunks = <List<int>>[];
       var received = 0;
+      final bodyIterator = StreamIterator(ioResponse);
       try {
-        await for (final chunk in ioResponse) {
+        while (await bodyIterator.moveNext()) {
+          final chunk = bodyIterator.current;
           chunks.add(chunk);
           received += chunk.length;
           if (onProgress != null) {
@@ -135,10 +137,16 @@ class IoTransport implements Transport {
           }
         }
       } on TimeoutException {
+        // Drain remaining bytes for keep-alive connection reuse
+        await _drainIterator(bodyIterator);
         throw ReadTimeoutError(
           request: request,
           timeout: receive,
         );
+      } catch (e) {
+        // Drain remaining on any read error to return connection to pool
+        await _drainIterator(bodyIterator);
+        rethrow;
       }
 
       // Flatten into a single Uint8List
@@ -197,6 +205,15 @@ class IoTransport implements Transport {
     } finally {
       await cancelSubscription?.cancel();
     }
+  }
+
+  /// Drain remaining bytes from [iterator] into the void, allowing
+  /// keep-alive connection reuse. Errors during drain are silently ignored.
+  /// ponytail: short timeout to avoid hanging on a stuck connection.
+  static Future<void> _drainIterator(StreamIterator<List<int>> iterator) async {
+    try {
+      while (await iterator.moveNext()) {}
+    } catch (_) {}
   }
 
   @override

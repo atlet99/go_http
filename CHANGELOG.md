@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-07-13
+
+### Added
+- Per-request delay: `RequestOptions.delay` pauses before sending the request (rate-limiting / polite crawling).
+- Body byte limits: `RequestOptions.maxBytesToRead` / `maxBytesToSave` throw `MaxBytesReadError` when the decoded response body exceeds the configured threshold.
+- Drain-and-close for keep-alive: `IoTransport` drains remaining response bytes before throwing read errors, returning the connection to the pool.
+- `RateLimiter` — token-bucket rate limiter with `.take()` → `Future<void>` (configurable tokens/sec and burst).
+- `ResizeableSemaphore` — adaptive semaphore with runtime `resize()`, FIFO fair ordering, non-negative `available`.
+- `HostCircuitBreaker` — per-host circuit breaker (closed/open/half-open), configurable failure threshold and cooldown, `CircuitOpenError` for fail-fast.
+
 ## [0.2.1] - 2026-07-13
 
 ### Added

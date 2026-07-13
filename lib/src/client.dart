@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'body_encoding.dart';
 import 'cancel/cancellation_token.dart';
@@ -360,6 +361,12 @@ class GoHttpClient {
           hook(request);
         }
 
+        // Per-request delay (rate-limiting / polite crawling)
+        final reqDelay = request.options?.delay;
+        if (reqDelay != null && reqDelay > Duration.zero) {
+          await Future.delayed(reqDelay);
+        }
+
         final response = await _transport.send(
           request,
           cancel: cancel,
@@ -393,6 +400,28 @@ class GoHttpClient {
 
         // Metrics: request end
         _metrics?.onRequestEnd(request, resp);
+
+        // Enforce byte limits (check raw bytes before application-level decode)
+        final rawBytes = resp.data;
+        if (rawBytes != null && rawBytes is Uint8List) {
+          final len = rawBytes.length;
+          final maxRead = request.options?.maxBytesToRead;
+          if (maxRead != null && len > maxRead) {
+            throw MaxBytesReadError(
+              request: request,
+              maxBytes: maxRead,
+              actualBytes: len,
+            );
+          }
+          final maxSave = request.options?.maxBytesToSave;
+          if (maxSave != null && len > maxSave) {
+            throw MaxBytesReadError(
+              request: request,
+              maxBytes: maxSave,
+              actualBytes: len,
+            );
+          }
+        }
 
         // Decode if a decoder was provided, otherwise return the raw bytes.
         // Re-wrap in a properly-typed Response<T> (avoids an unsafe cast).

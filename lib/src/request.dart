@@ -40,6 +40,9 @@ class RequestOptions {
     this.followRedirects = useClientDefault,
     this.maxRedirects,
     this.autoDecompress,
+    this.delay,
+    this.maxBytesToRead,
+    this.maxBytesToSave,
   });
 
   final Map<String, String>? headers;
@@ -56,6 +59,19 @@ class RequestOptions {
   final int? maxRedirects;
   final bool? autoDecompress;
 
+  /// Optional delay to wait before sending the request.
+  /// Useful for rate-limiting (polite crawling, avoiding throttling).
+  final Duration? delay;
+
+  /// Hard limit on response body bytes. Throws [MaxBytesReadError] if the
+  /// decoded response body exceeds this value.
+  final int? maxBytesToRead;
+
+  /// Hard limit on response body bytes before saving/spooling. Throws
+  /// [MaxBytesReadError] if the decoded body exceeds this value.
+  /// ponytail: future versions may spill to a temp file instead of throwing.
+  final int? maxBytesToSave;
+
   RequestOptions copyWith({
     Map<String, String>? headers,
     QueryParams? queryParameters,
@@ -66,6 +82,9 @@ class RequestOptions {
     bool? followRedirects,
     int? maxRedirects,
     bool? autoDecompress,
+    Duration? delay,
+    int? maxBytesToRead,
+    int? maxBytesToSave,
   }) {
     return RequestOptions(
       headers: headers ?? this.headers,
@@ -77,6 +96,9 @@ class RequestOptions {
       followRedirects: followRedirects ?? this.followRedirects,
       maxRedirects: maxRedirects ?? this.maxRedirects,
       autoDecompress: autoDecompress ?? this.autoDecompress,
+      delay: delay ?? this.delay,
+      maxBytesToRead: maxBytesToRead ?? this.maxBytesToRead,
+      maxBytesToSave: maxBytesToSave ?? this.maxBytesToSave,
     );
   }
 }
