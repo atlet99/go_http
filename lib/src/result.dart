@@ -1,5 +1,5 @@
 import 'dart:convert' show jsonEncode, utf8;
-import 'dart:io' show File, IOSink;
+import 'dart:io' show File, FileSystemException, IOSink;
 
 import 'package:meta/meta.dart';
 
@@ -55,21 +55,50 @@ class Result<T> {
 
 /// Pluggable output SPI — one writer owns its [IOSink] (single-writer
 /// file I/O, no shared locks). `write` is called per result; `close` flushes.
+///
+/// Factory constructors use two-phase file writing (temp + atomic rename)
+/// so parallel writers never corrupt each other's output.
 abstract class ResultSink {
-  factory ResultSink.jsonl(String path) => JsonlSink(File(path).openWrite());
+  factory ResultSink.jsonl(String path) =>
+      JsonlSink._safe(path, _claimTemp(path));
 
-  factory ResultSink.csv(String path) => CsvSink(File(path).openWrite());
+  factory ResultSink.csv(String path) =>
+      CsvSink._safe(path, _claimTemp(path));
 
   void write(Result result);
 
   Future<void> close();
 }
 
+/// Creates an empty temp file in the same directory as [targetPath],
+/// using an incrementing suffix so parallel callers don't collide.
+/// ponytail: O_EXCL semantics via [File.createSync] exclusive mode.
+File _claimTemp(String targetPath) {
+  var i = 0;
+  while (true) {
+    final tmpPath = i == 0 ? '$targetPath.tmp' : '$targetPath.tmp.$i';
+    final f = File(tmpPath);
+    try {
+      f.createSync(exclusive: true);
+      return f;
+    } on FileSystemException {
+      i++;
+    }
+  }
+}
+
 /// Newline-delimited JSON sink.
 class JsonlSink implements ResultSink {
-  JsonlSink(this._sink);
+  JsonlSink(this._sink) : _targetPath = null, _tempPath = null;
+
+  JsonlSink._safe(String targetPath, File tempFile)
+      : _sink = tempFile.openWrite(),
+        _targetPath = targetPath,
+        _tempPath = tempFile.path;
 
   final IOSink _sink;
+  final String? _targetPath;
+  final String? _tempPath;
 
   @override
   void write(Result result) {
@@ -77,7 +106,12 @@ class JsonlSink implements ResultSink {
   }
 
   @override
-  Future<void> close() => _sink.close();
+  Future<void> close() async {
+    await _sink.close();
+    if (_targetPath != null && _tempPath != null) {
+      await File(_tempPath!).rename(_targetPath!);
+    }
+  }
 
   static Map<String, Object?> _toMap(Result result) => result.when(
         ok: (resp) => {
@@ -102,11 +136,22 @@ class JsonlSink implements ResultSink {
 /// cells with a single quote). Columns are fixed for simplicity.
 class CsvSink implements ResultSink {
   CsvSink(this._sink, {this.columns = const ['ok', 'url', 'status', 'error']})
-      : _wroteHeader = false;
+      : _wroteHeader = false,
+        _targetPath = null,
+        _tempPath = null;
+
+  CsvSink._safe(String targetPath, File tempFile)
+      : _sink = tempFile.openWrite(),
+        columns = const ['ok', 'url', 'status', 'error'],
+        _targetPath = targetPath,
+        _tempPath = tempFile.path,
+        _wroteHeader = false;
 
   final IOSink _sink;
   final List<String> columns;
   bool _wroteHeader;
+  final String? _targetPath;
+  final String? _tempPath;
 
   @override
   void write(Result result) {
@@ -132,7 +177,12 @@ class CsvSink implements ResultSink {
   }
 
   @override
-  Future<void> close() => _sink.close();
+  Future<void> close() async {
+    await _sink.close();
+    if (_targetPath != null && _tempPath != null) {
+      await File(_tempPath!).rename(_targetPath!);
+    }
+  }
 
   static String _csvCell(String value) {
     var v = value;
