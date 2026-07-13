@@ -37,6 +37,7 @@ export 'src/metrics/console_metrics_sink.dart';
 export 'src/metrics/metrics_sink.dart';
 export 'src/multipart.dart';
 export 'src/parsers.dart';
+export 'src/pinning.dart';
 export 'src/policy/redirect_policy.dart';
 export 'src/policy/retry_policy.dart';
 export 'src/progress_reporter.dart';

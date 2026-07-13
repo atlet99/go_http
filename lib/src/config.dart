@@ -6,6 +6,7 @@ import 'event_hooks.dart';
 import 'interceptors/interceptor.dart';
 import 'limits.dart';
 import 'metrics/metrics_sink.dart';
+import 'pinning.dart';
 import 'policy/redirect_policy.dart';
 import 'policy/retry_policy.dart';
 import 'proxy.dart';
@@ -45,6 +46,7 @@ class ClientConfig {
     this.trustEnv = true,
     this.defaultHeaders = const {'accept-encoding': 'gzip, deflate, br'},
     this.cookieStore,
+    this.pinnedCertificates,
     this.minTlsVersion,
     this.maxTlsVersion,
   });
@@ -127,6 +129,17 @@ class ClientConfig {
   /// Maximum TLS version (e.g. dart:io `TlsVersion.tls1_3`).
   final Object? maxTlsVersion;
 
+  /// Per-host certificate pinning configuration.
+  ///
+  /// Maps hostnames to acceptable SHA-256 certificate fingerprints. When a
+  /// pinned host presents an untrusted certificate, the transport accepts it
+  /// only if the fingerprint matches one of the pins.
+  ///
+  /// ponytail: only checked when system CA verification fails. True pinning
+  /// (rejecting valid-looking forged CA certs) requires a `PinningDialer`
+  /// that wraps `SecureSocket` directly.
+  final PinnedCertificates? pinnedCertificates;
+
   List<ValidationError> validate() {
     final errors = <ValidationError>[];
     if (connectTimeout <= Duration.zero) {
@@ -167,6 +180,7 @@ class ClientConfig {
     bool? trustEnv,
     Map<String, String>? defaultHeaders,
     CookieStore? cookieStore,
+    PinnedCertificates? pinnedCertificates,
     Object? minTlsVersion,
     Object? maxTlsVersion,
   }) =>
@@ -188,6 +202,7 @@ class ClientConfig {
         trustEnv: trustEnv ?? this.trustEnv,
         defaultHeaders: defaultHeaders ?? this.defaultHeaders,
         cookieStore: cookieStore ?? this.cookieStore,
+        pinnedCertificates: pinnedCertificates ?? this.pinnedCertificates,
         minTlsVersion: minTlsVersion ?? this.minTlsVersion,
         maxTlsVersion: maxTlsVersion ?? this.maxTlsVersion,
       );

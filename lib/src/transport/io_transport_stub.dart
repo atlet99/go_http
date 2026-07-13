@@ -1,5 +1,6 @@
 import '../cancel/cancellation_token.dart';
 import '../dns_resolver.dart';
+import '../pinning.dart';
 import '../proxy.dart';
 import '../request.dart';
 import '../response.dart';
@@ -19,6 +20,7 @@ class IoTransport implements Transport {
     Object? verify,
     Object? minTlsVersion,
     Object? maxTlsVersion,
+    PinnedCertificates? pinnedCertificates,
   });
 
   final bool tryHttpOnHttpsError;

@@ -11,6 +11,7 @@ import '../dns_resolver.dart';
 import '../enrichment.dart';
 import '../errors.dart';
 import '../headers.dart';
+import '../pinning.dart';
 import '../proxy.dart';
 import '../request.dart';
 import '../response.dart';
@@ -30,6 +31,7 @@ class IoTransport implements Transport {
     Object? verify,
     Object? minTlsVersion,
     Object? maxTlsVersion,
+    PinnedCertificates? pinnedCertificates,
   }) : _httpClient = httpClient ??
             _buildClient(
               maxConnectionsPerHost,
@@ -39,6 +41,7 @@ class IoTransport implements Transport {
               verify,
               minTlsVersion,
               maxTlsVersion,
+              pinnedCertificates,
             );
 
   final HttpClient _httpClient;
@@ -496,6 +499,7 @@ class IoTransport implements Transport {
     Object? verify,
     Object? minTlsVersion,
     Object? maxTlsVersion,
+    PinnedCertificates? pinnedCertificates,
   ) {
     final client = HttpClient(context: buildSecurityContext(verify, trustEnv))
       ..maxConnectionsPerHost = maxConnectionsPerHost
@@ -509,8 +513,21 @@ class IoTransport implements Transport {
     // platform TLS version constraints. The current dart:io SDK does not
     // expose TlsVersion — re-enable when the API stabilises.
 
-    if (verify == false) {
-      // No certificate verification.
+    final hasPins =
+        pinnedCertificates != null && pinnedCertificates.pins.isNotEmpty;
+
+    if (hasPins) {
+      client.badCertificateCallback =
+          (X509Certificate cert, String host, int port) {
+        final hostPins = pinnedCertificates.pins[host];
+        if (hostPins != null && hostPins.isNotEmpty) {
+          final fp = base64Encode(sha256.convert(cert.der).bytes);
+          return hostPins.contains(fp);
+        }
+        // Host not pinned → use verify setting.
+        return verify == false;
+      };
+    } else if (verify == false) {
       client.badCertificateCallback = (_, __, ___) => true;
     }
 

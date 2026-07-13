@@ -15,6 +15,7 @@ import 'interceptors/interceptor.dart';
 import 'limits.dart';
 import 'metrics/metrics_sink.dart';
 import 'multipart.dart';
+import 'pinning.dart';
 import 'policy/redirect_policy.dart';
 import 'policy/retry_policy.dart';
 import 'proxy.dart';
@@ -67,6 +68,7 @@ class GoHttpClient {
               minTlsVersion: clientConfig?.minTlsVersion,
               maxTlsVersion: clientConfig?.maxTlsVersion,
               limits: clientConfig?.limits,
+              pinnedCertificates: clientConfig?.pinnedCertificates,
             ),
         _interceptors = List.from(
           interceptors.isNotEmpty
@@ -145,6 +147,7 @@ class GoHttpClient {
     Object? minTlsVersion,
     Object? maxTlsVersion,
     Limits? limits,
+    PinnedCertificates? pinnedCertificates,
   }) {
     if (isIoPlatform) {
       return IoTransport(
@@ -155,6 +158,7 @@ class GoHttpClient {
         maxTlsVersion: maxTlsVersion,
         maxConnectionsPerHost: limits?.maxConnections ?? 100,
         idleTimeout: limits?.keepaliveExpiry,
+        pinnedCertificates: pinnedCertificates,
       );
     } else {
       return WebTransport();
