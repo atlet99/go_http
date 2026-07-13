@@ -467,6 +467,29 @@ void main() {
     });
   });
 
+  group('Request extensions', () {
+    test('defaults to empty map', () {
+      final req = Request(
+        method: HttpMethod.get,
+        uri: Uri.parse('https://example.com'),
+      );
+      expect(req.extensions, isEmpty);
+    });
+
+    test('passes through copyWith', () {
+      final req = Request(
+        method: HttpMethod.get,
+        uri: Uri.parse('https://example.com'),
+        extensions: {'sni': 'custom.example.com'},
+      );
+      expect(req.extensions['sni'], 'custom.example.com');
+      final copy = req.copyWith(extensions: {'timeout': 5000});
+      expect(copy.extensions['timeout'], 5000);
+      // Original unchanged
+      expect(req.extensions['sni'], 'custom.example.com');
+    });
+  });
+
   group('stderrLog', () {
     test('is a function that can be called', () {
       stderrLog('hello');

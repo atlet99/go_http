@@ -575,7 +575,15 @@ class GoHttpClient {
         if (_retryPolicy != null &&
             _retryPolicy!.shouldRetry(request, error, attempt)) {
           attempt++;
-          final delay = _retryPolicy!.getDelay(attempt);
+          var delay = _retryPolicy!.getDelay(attempt);
+          // Honor Retry-After header (RFC 9110 §10.2.3) — server-specified
+          // delay always overrides the policy's backoff.
+          if (error is HttpStatusError) {
+            final retryAfter = _parseRetryAfter(error.response);
+            if (retryAfter != null) {
+              delay = retryAfter;
+            }
+          }
           _metrics?.onRetry(request, attempt, delay);
           await Future.delayed(delay);
           continue;
@@ -705,6 +713,22 @@ class GoHttpClient {
     }
     final redirectUri = originalRequest.uri.resolve(location);
     return originalRequest.copyWith(uri: redirectUri, body: null);
+  }
+
+  /// Parse a `Retry-After` header (RFC 9110 §10.2.3).
+  /// ponytail: only supports seconds-integer; HTTP-date parsing deferred.
+  Duration? _parseRetryAfter(Response resp) {
+    final val = resp.headers['retry-after'];
+    if (val == null) {
+      return null;
+    }
+    final trimmed = val.trim();
+    final seconds = int.tryParse(trimmed);
+    if (seconds != null && seconds >= 0) {
+      // Cap at 60s to avoid unreasonably long delays.
+      return Duration(seconds: seconds > 60 ? 60 : seconds);
+    }
+    return null;
   }
 
   /// Expose the redirect policy (used by tests / advanced configuration)
