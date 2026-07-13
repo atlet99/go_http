@@ -486,6 +486,7 @@ void main() {
     test('const defaults', () {
       const l = Limits.defaults;
       expect(l.maxConnections, 100);
+      expect(l.poolTimeout, const Duration(seconds: 10));
     });
 
     test('custom', () {
@@ -493,10 +494,12 @@ void main() {
         maxConnections: 50,
         maxKeepaliveConnections: 10,
         keepaliveExpiry: Duration(seconds: 10),
+        poolTimeout: Duration(seconds: 5),
       );
       expect(l.maxConnections, 50);
       expect(l.maxKeepaliveConnections, 10);
       expect(l.keepaliveExpiry, const Duration(seconds: 10));
+      expect(l.poolTimeout, const Duration(seconds: 5));
     });
 
     test('copyWith', () {
@@ -505,6 +508,7 @@ void main() {
       expect(l2.maxConnections, 200);
       expect(l2.maxKeepaliveConnections, 20);
       expect(l2.keepaliveExpiry, const Duration(seconds: 5));
+      expect(l2.poolTimeout, const Duration(seconds: 10));
     });
 
     test('toString', () {
@@ -512,6 +516,7 @@ void main() {
       expect(l.toString(), contains('maxConnections: 100'));
       expect(l.toString(), contains('maxKeepaliveConnections: 20'));
       expect(l.toString(), contains('keepaliveExpiry'));
+      expect(l.toString(), contains('poolTimeout'));
     });
   });
 

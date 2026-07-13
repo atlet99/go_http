@@ -46,3 +46,27 @@ EncodedBody encodeRequest({
   // or [data] when it was passed as a non-Map raw body.
   return EncodedBody(h, content ?? data);
 }
+
+/// Returns the byte length of [body] when known deterministically,
+/// or `null` when the length cannot be determined without consuming the body
+/// (e.g. a [Stream]).
+///
+/// Useful for deciding between `Content-Length` and chunked transfer encoding:
+/// - `String` → UTF-8 encoded length
+/// - `List<int>` / `Uint8List` → length
+/// - `Stream<List<int>>` → `null` (unknown, use chunked)
+int? peekLength(Object? body) {
+  if (body == null) {
+    return 0;
+  }
+  if (body is String) {
+    return utf8.encode(body).length;
+  }
+  if (body is List<int>) {
+    return body.length;
+  }
+  if (body is Stream<List<int>>) {
+    return null;
+  }
+  return null;
+}

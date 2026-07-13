@@ -75,6 +75,11 @@ class ClientConfig {
                     milliseconds: limitsJson['keepaliveExpiry'] as int,
                   )
                 : const Duration(seconds: 5),
+            poolTimeout: limitsJson['poolTimeout'] != null
+                ? Duration(
+                    milliseconds: limitsJson['poolTimeout'] as int,
+                  )
+                : const Duration(seconds: 10),
           )
         : null;
 
