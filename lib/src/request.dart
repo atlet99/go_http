@@ -45,6 +45,7 @@ class RequestOptions {
     this.maxBytesToRead,
     this.maxBytesToSave,
     this.dialAddress,
+    this.sni,
   });
 
   final Map<String, String>? headers;
@@ -83,6 +84,12 @@ class RequestOptions {
   /// header. TLS SNI still uses the original hostname (dart:io handles this).
   final Uri? dialAddress;
 
+  /// Override the TLS SNI (Server Name Indication) hostname sent during the
+  /// TLS handshake, while keeping the original [Request.uri] for the TCP
+  /// connection target and `Host` header. Useful for vhost-testing behind
+  /// load balancers or CDNs that route by SNI.
+  final String? sni;
+
   RequestOptions copyWith({
     Map<String, String>? headers,
     QueryParams? queryParameters,
@@ -97,6 +104,7 @@ class RequestOptions {
     int? maxBytesToRead,
     int? maxBytesToSave,
     Uri? dialAddress,
+    String? sni,
   }) {
     return RequestOptions(
       headers: headers ?? this.headers,
@@ -112,6 +120,7 @@ class RequestOptions {
       maxBytesToRead: maxBytesToRead ?? this.maxBytesToRead,
       maxBytesToSave: maxBytesToSave ?? this.maxBytesToSave,
       dialAddress: dialAddress ?? this.dialAddress,
+      sni: sni ?? this.sni,
     );
   }
 }

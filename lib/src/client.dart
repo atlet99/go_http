@@ -44,6 +44,10 @@ class ValidationError {
 /// [GoHttpClient] orchestrates interceptors, retry/redirect policies, cookie
 /// storage, timeouts and metrics on top of a pluggable [Transport].
 class GoHttpClient {
+  /// Default configuration preset — explicit constructor defaults as a
+  /// factory, useful for JSON/YAML deserialization and env-merge patterns.
+  static GoHttpClient defaults() => GoHttpClient(transport: null);
+
   GoHttpClient({
     Transport? transport,
     List<Interceptor> interceptors = const [],

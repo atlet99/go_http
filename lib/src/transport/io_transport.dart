@@ -57,9 +57,14 @@ class IoTransport implements Transport {
     HttpClientRequest ioRequest;
     final uri = request.uri;
     final connAddr = request.options?.dialAddress;
-    final connUri = connAddr != null
-        ? uri.replace(host: connAddr.host, port: connAddr.port)
-        : uri;
+    final sni = request.options?.sni;
+    // SNI customization: substitute host in connection URL so TLS uses the
+    // desired hostname; the original Host header is restored below.
+    final connUri = sni != null
+        ? uri.replace(host: sni)
+        : connAddr != null
+            ? uri.replace(host: connAddr.host, port: connAddr.port)
+            : uri;
     try {
       ioRequest = await _httpClient
           .openUrl(request.methodString, connUri)
@@ -133,9 +138,9 @@ class IoTransport implements Transport {
       ioRequest.headers.set(entry.key, entry.value);
     }
 
-    // If dialAddress was used, restore the original Host header so the
+    // If dialAddress or sni was used, restore the original Host header so the
     // server sees the logical request target, not the connection address.
-    if (connAddr != null) {
+    if (connAddr != null || sni != null) {
       final defaultPort = uri.scheme == 'https' ? 443 : 80;
       final host = uri.port > 0 && uri.port != defaultPort
           ? '${uri.host}:${uri.port}'
