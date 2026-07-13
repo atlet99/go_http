@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Body encoding: `encodeRequest` dispatch ladder — `json` → `application/json`, `Map` → `application/x-www-form-urlencoded`, raw `String`/bytes/`Multipart` pass through. `post`/`put`/`patch`/`delete` route their `data`/`json` through it.
 - Content decoder registry: `ContentDecoder` SPI + `contentDecoders` map (gzip/deflate always, brotli/zstd optional via `registerBrotli`/`registerZstd`), `decodeContentEncoding` for stacked encodings, deflate-ambiguity fix (zlib → raw fallback). `IoTransport` now always sets `autoUncompress=false` and decodes manually. Default `accept-encoding` narrowed to `gzip`.
 
+### Changed
+- Updated `README.md` — complete rewrite reflecting all current APIs (proxy, auth, decoders, batch, multipart, structured timeouts, headers, mock transport, error hierarchy, etc.)
+- Deleted `example/main.dart` (duplicate of `simple_get.dart`); added `example/post_json.dart` demonstrating `json:` parameter
+- Updated `example/download_progress.dart` to use `onProgress` callback
+- Updated `Makefile`: replaced `example-main` target with `example-post-json`
+
 ## [0.2.0] - 2026-07-12
 
 ### Fixed
