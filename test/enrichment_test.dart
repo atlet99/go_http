@@ -83,5 +83,28 @@ void main() {
       expect(res.enrichment?.remoteAddress, '10.0.0.1');
       client.dispose();
     });
+
+    test('ResponseEnricher adds extra data to enrichment', () async {
+      final transport = FakeTransport([ok(200)]);
+      final enricher = _TestEnricher();
+      final client = GoHttpClient(
+        transport: transport,
+        executorConfig: ExecutorConfig(enrichers: [enricher]),
+      );
+      final res = await client.get<Uint8List>(Uri.parse('https://x.test'));
+      expect(res.enrichment?.extra['x-custom'], 'hello');
+      expect(enricher.callCount, 1);
+      client.dispose();
+    });
   });
+}
+
+class _TestEnricher extends ResponseEnricher {
+  var callCount = 0;
+
+  @override
+  void enrich(Map<String, Object?> extra) {
+    extra['x-custom'] = 'hello';
+    callCount++;
+  }
 }

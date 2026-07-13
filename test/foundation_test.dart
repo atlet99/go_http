@@ -254,6 +254,44 @@ void main() {
     });
   });
 
+  group('Headers.parse', () {
+    test('parses raw header strings', () {
+      final h = Headers.parse('Content-Type: text/html\nX-Custom: val\r\n');
+      expect(h['content-type'], 'text/html');
+      expect(h['x-custom'], 'val');
+    });
+
+    test('parses with status line', () {
+      final h = Headers.parse('HTTP/1.1 200 OK\nContent-Length: 42\n');
+      expect(h['content-length'], '42');
+    });
+
+    test('empty string yields empty headers', () {
+      expect(Headers.parse('').length, 0);
+    });
+  });
+
+  group('PortSpec', () {
+    test('parses scheme:port pairs', () {
+      final spec = PortSpec.parse('http:8080,https:8443');
+      expect(spec.ports['http'], 8080);
+      expect(spec.ports['https'], 8443);
+    });
+
+    test('skips invalid entries', () {
+      final spec = PortSpec.parse('http:0,https:99999');
+      expect(spec.ports, isEmpty);
+    });
+  });
+
+  group('stderrLog', () {
+    test('is a function that can be called', () {
+      stderrLog('hello');
+      stderrLog(42);
+      // no crash = pass
+    });
+  });
+
   group('ClientConfig', () {
     test('defaults carries sensible defaults', () {
       expect(ClientConfig.defaults.connectTimeout, const Duration(seconds: 10));

@@ -66,5 +66,19 @@ void main() {
       expect(lines[1], contains("'=cmd|/C evil"));
       file.deleteSync();
     });
+
+    test('two-phase write creates temp file and renames on close', () async {
+      final path = '${Directory.systemTemp.path}/go_http_twophase_${DateTime.now().microsecondsSinceEpoch}.jsonl';
+      final sink = ResultSink.jsonl(path);
+      sink.write(Result.ok(Response(request: Request(method: HttpMethod.get, uri: Uri.parse('https://x.test')), statusCode: 200)));
+      // Before close: temp file exists, target does not
+      expect(File('$path.tmp').existsSync(), isTrue);
+      expect(File(path).existsSync(), isFalse);
+      await sink.close();
+      // After close: target exists, temp is gone
+      expect(File('$path.tmp').existsSync(), isFalse);
+      expect(File(path).existsSync(), isTrue);
+      File(path).deleteSync();
+    });
   });
 }
