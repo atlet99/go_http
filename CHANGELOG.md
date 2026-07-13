@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RateLimiter` — token-bucket rate limiter with `.take()` → `Future<void>` (configurable tokens/sec and burst).
 - `ResizeableSemaphore` — adaptive semaphore with runtime `resize()`, FIFO fair ordering, non-negative `available`.
 - `HostCircuitBreaker` — per-host circuit breaker (closed/open/half-open), configurable failure threshold and cooldown, `CircuitOpenError` for fail-fast.
+- `RateLimitPolicy.global()` / `.perHost()` — policy wrapper over `RateLimiter` for shared or per-host rate limiting.
+- `ResponseEnrichment`, `ResponseTiming`, `TlsInfo` — enrichment data model attached to `Response.enrichment`.
+- `RequestTrace` — per-request phase timestamps (wroteRequest, gotFirstResponseByte, responseDone) populated by `IoTransport`.
+- `RetryPolicy.scanning()` / `.single()` — retry presets for probing vs critical workloads.
+- Idempotency extended: `PUT` and `DELETE` are now retried by default (matching `httpx`/`retryablehttp`).
 
 ## [0.2.1] - 2026-07-13
 

@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 import 'headers.dart';
+import 'request_trace.dart';
 import 'timeout.dart';
 import 'url.dart';
 
@@ -112,6 +113,7 @@ class Request {
     Object? headers,
     this.body,
     this.options,
+    this.trace,
   }) : headers = headers is Headers ? headers : Headers(headers);
 
   final HttpMethod method;
@@ -120,12 +122,16 @@ class Request {
   final Object? body;
   final RequestOptions? options;
 
+  /// Optional trace populated by the transport with phase timestamps.
+  final RequestTrace? trace;
+
   Request copyWith({
     HttpMethod? method,
     Uri? uri,
     Object? headers,
     Object? body,
     RequestOptions? options,
+    RequestTrace? trace,
   }) {
     return Request(
       method: method ?? this.method,
@@ -133,6 +139,7 @@ class Request {
       headers: headers ?? this.headers,
       body: body ?? this.body,
       options: options ?? this.options,
+      trace: trace ?? this.trace,
     );
   }
 
@@ -140,7 +147,9 @@ class Request {
   bool get isIdempotent {
     return method == HttpMethod.get ||
         method == HttpMethod.head ||
-        method == HttpMethod.options;
+        method == HttpMethod.options ||
+        method == HttpMethod.put ||
+        method == HttpMethod.delete;
   }
 
   /// Convert HttpMethod to string

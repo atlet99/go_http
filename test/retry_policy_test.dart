@@ -2,6 +2,55 @@ import 'package:go_http/go_http.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('RetryPolicy presets', () {
+    test('scanning() fails fast with 1 retry and short backoff', () {
+      final policy = RetryPolicy.scanning();
+      expect(policy.getDelay(0).inMilliseconds, lessThanOrEqualTo(100));
+      expect(policy.getDelay(1).inMilliseconds, lessThanOrEqualTo(250));
+    });
+
+    test('single() retries 5xx and 429', () {
+      final policy = RetryPolicy.single();
+      final getReq = Request(method: HttpMethod.get, uri: Uri.parse('https://x.test'));
+
+      expect(
+        policy.shouldRetry(
+          getReq,
+          HttpStatusError(
+            request: Request(
+              method: HttpMethod.get,
+              uri: Uri.parse('https://x.test'),
+            ),
+            response: Response(request: getReq, statusCode: 500),
+          ),
+          0,
+        ),
+        isTrue,
+      );
+
+      expect(
+        policy.shouldRetry(
+          getReq,
+          HttpStatusError(
+            request: Request(
+              method: HttpMethod.get,
+              uri: Uri.parse('https://x.test'),
+            ),
+            response: Response(request: getReq, statusCode: 400),
+          ),
+          0,
+        ),
+        isFalse,
+      );
+    });
+
+    test('single() stops after max attempts', () {
+      final policy = RetryPolicy.single();
+      final req = Request(method: HttpMethod.get, uri: Uri.parse('https://x.test'));
+      expect(policy.shouldRetry(req, NetworkError(message: 'test', request: req), 4), isTrue);
+      expect(policy.shouldRetry(req, NetworkError(message: 'test', request: req), 5), isFalse);
+    });
+  });
   late Request getRequest;
 
   setUp(() {

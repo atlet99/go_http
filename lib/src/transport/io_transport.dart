@@ -114,6 +114,8 @@ class IoTransport implements Transport {
           timeout: send,
         );
       }
+      // ponytail: wroteRequest recorded after close, not after the last byte.
+      _recordTrace(request, wroteRequest: _traceUs());
 
       cancel?.throwIfCancelled();
 
@@ -126,10 +128,15 @@ class IoTransport implements Transport {
       // Read response body, reporting progress when requested
       final chunks = <List<int>>[];
       var received = 0;
+      var firstByteRecorded = false;
       final bodyIterator = StreamIterator(ioResponse);
       try {
         while (await bodyIterator.moveNext()) {
           final chunk = bodyIterator.current;
+          if (!firstByteRecorded) {
+            firstByteRecorded = true;
+            _recordTrace(request, gotFirstResponseByte: _traceUs());
+          }
           chunks.add(chunk);
           received += chunk.length;
           if (onProgress != null) {
@@ -148,6 +155,8 @@ class IoTransport implements Transport {
         await _drainIterator(bodyIterator);
         rethrow;
       }
+
+      _recordTrace(request, responseDone: _traceUs());
 
       // Flatten into a single Uint8List
       final body = Uint8List.fromList(chunks.expand((c) => c).toList());
@@ -206,6 +215,25 @@ class IoTransport implements Transport {
       await cancelSubscription?.cancel();
     }
   }
+
+  /// Record phase timestamps into [request.trace], if non-null.
+  static void _recordTrace(
+    Request request, {
+    int? wroteRequest,
+    int? gotFirstResponseByte,
+    int? responseDone,
+  }) {
+    final t = request.trace;
+    if (t == null) {
+      return;
+    }
+    t.wroteRequest = wroteRequest ?? t.wroteRequest;
+    t.gotFirstResponseByte = gotFirstResponseByte ?? t.gotFirstResponseByte;
+    t.responseDone = responseDone ?? t.responseDone;
+  }
+
+  /// Monotonic microsecond counter for trace timestamps.
+  static int _traceUs() => DateTime.now().microsecondsSinceEpoch;
 
   /// Drain remaining bytes from [iterator] into the void, allowing
   /// keep-alive connection reuse. Errors during drain are silently ignored.

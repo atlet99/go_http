@@ -6,6 +6,7 @@ import 'cancel/cancellation_token.dart';
 import 'codec/decoder.dart';
 import 'cookie/cookie_store.dart';
 import 'cookie/memory_cookie_store.dart';
+import 'enrichment.dart';
 import 'errors.dart';
 import 'event_hooks.dart';
 import 'headers.dart';
@@ -426,9 +427,11 @@ class GoHttpClient {
         // Decode if a decoder was provided, otherwise return the raw bytes.
         // Re-wrap in a properly-typed Response<T> (avoids an unsafe cast).
         final decoded = decoder != null ? decoder.decode(resp.data) : resp.data;
+        final enrichment = _buildEnrichment(request, resp);
         return resp.copyWith<T>(
           data: decoded,
           elapsed: stopwatch.elapsed,
+          enrichment: enrichment,
         );
       } catch (e) {
         // Build a typed HttpError
@@ -584,6 +587,12 @@ class GoHttpClient {
       headers['content-type'] = mp.contentType;
     }
     return request.copyWith(headers: headers, body: mp.render());
+  }
+
+  /// Build enrichment data after a response is received.
+  /// ponytail: minimal — only transport-independent fields.
+  ResponseEnrichment _buildEnrichment(Request req, Response resp) {
+    return ResponseEnrichment(trace: req.trace);
   }
 
   /// Expose the redirect policy (used by tests / advanced configuration)

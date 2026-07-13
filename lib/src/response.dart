@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'enrichment.dart';
 import 'errors.dart';
 import 'headers.dart';
 import 'request.dart';
@@ -14,6 +15,7 @@ class Response<T> {
     this.data,
     this.statusMessage,
     this.elapsed = Duration.zero,
+    this.enrichment,
     List<Response>? history,
   })  : headers = headers is Headers ? headers : Headers(headers),
         history = history ?? const [];
@@ -29,6 +31,10 @@ class Response<T> {
 
   /// Redirect chain (intermediate responses), earliest first.
   final List<Response> history;
+
+  /// Optional enrichment (timing breakdown, TLS info, etc.).
+  /// Populated when the transport collects it; `null` otherwise.
+  final ResponseEnrichment? enrichment;
 
   /// 1xx — informational.
   bool get isInformational => statusCode >= 100 && statusCode < 200;
@@ -161,6 +167,7 @@ class Response<T> {
     R? data,
     String? statusMessage,
     Duration? elapsed,
+    ResponseEnrichment? enrichment,
     List<Response>? history,
   }) {
     return Response<R>(
@@ -170,6 +177,7 @@ class Response<T> {
       data: data ?? (this.data as R?),
       statusMessage: statusMessage ?? this.statusMessage,
       elapsed: elapsed ?? this.elapsed,
+      enrichment: enrichment ?? this.enrichment,
       history: history ?? this.history,
     );
   }
