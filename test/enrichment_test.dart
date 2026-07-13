@@ -42,6 +42,19 @@ void main() {
       expect(tls.handshakeDuration, const Duration(milliseconds: 15));
     });
 
+    test('TlsInfo carries certificate fingerprints and flags', () {
+      const tls = TlsInfo(
+        fingerprintSha1: 'AA:BB:CC',
+        fingerprintSha256: '11:22:33:44',
+        isSelfSigned: true,
+        isWildcard: true,
+      );
+      expect(tls.fingerprintSha1, 'AA:BB:CC');
+      expect(tls.fingerprintSha256, '11:22:33:44');
+      expect(tls.isSelfSigned, isTrue);
+      expect(tls.isWildcard, isTrue);
+    });
+
     test('Response enrichment field is null by default', () async {
       final transport = FakeTransport([
         ok(200, Uint8List.fromList([1, 2, 3])),

@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart' show sha256;
 
 import '../cancel/cancellation_token.dart';
 import '../decoders.dart';
@@ -282,19 +285,7 @@ class IoTransport implements Transport {
             headers.remove('content-encoding');
             final remoteAddr =
                 ioResponse.connectionInfo?.remoteAddress.address;
-            final cert = ioResponse.certificate;
-            final tlsInfo = cert != null
-                ? TlsInfo(
-                    serverCertificate: cert.pem,
-                    subject: cert.subject,
-                    issuer: cert.issuer,
-                    fingerprintSha1: cert.sha1
-                        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-                        .join(':'),
-                    validFrom: cert.startValidity,
-                    validTo: cert.endValidity,
-                  )
-                : null;
+            final tlsInfo = _buildTlsInfo(ioResponse);
             return Response(
               request: request,
               statusCode: ioResponse.statusCode,
@@ -322,19 +313,7 @@ class IoTransport implements Transport {
             headers.remove('content-encoding');
             final remoteAddr =
                 ioResponse.connectionInfo?.remoteAddress.address;
-            final cert = ioResponse.certificate;
-            final tlsInfo = cert != null
-                ? TlsInfo(
-                    serverCertificate: cert.pem,
-                    subject: cert.subject,
-                    issuer: cert.issuer,
-                    fingerprintSha1: cert.sha1
-                        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-                        .join(':'),
-                    validFrom: cert.startValidity,
-                    validTo: cert.endValidity,
-                  )
-                : null;
+            final tlsInfo = _buildTlsInfo(ioResponse);
             return Response(
               request: request,
               statusCode: ioResponse.statusCode,
@@ -347,19 +326,7 @@ class IoTransport implements Transport {
           }
         } else {
           final remoteAddr = ioResponse.connectionInfo?.remoteAddress.address;
-          final cert = ioResponse.certificate;
-          final tlsInfo = cert != null
-              ? TlsInfo(
-                  serverCertificate: cert.pem,
-                  subject: cert.subject,
-                  issuer: cert.issuer,
-                  fingerprintSha1: cert.sha1
-                      .map((b) => b.toRadixString(16).padLeft(2, '0'))
-                      .join(':'),
-                  validFrom: cert.startValidity,
-                  validTo: cert.endValidity,
-                )
-              : null;
+          final tlsInfo = _buildTlsInfo(ioResponse);
           return Response(
             request: request,
             statusCode: ioResponse.statusCode,
@@ -396,6 +363,50 @@ class IoTransport implements Transport {
       } finally {
         await cancelSubscription?.cancel();
       }
+    }
+  }
+
+  /// Build [TlsInfo] from a dart:io [HttpClientResponse], computing SHA-256
+  /// fingerprint from the PEM body and detecting self-signed / wildcard.
+  static TlsInfo? _buildTlsInfo(HttpClientResponse ioResponse) {
+    final cert = ioResponse.certificate;
+    if (cert == null) {
+      return null;
+    }
+    final fingerprintSha256 = _sha256Fingerprint(cert.pem);
+    final subject = cert.subject;
+    final issuer = cert.issuer;
+    return TlsInfo(
+      serverCertificate: cert.pem,
+      subject: subject,
+      issuer: issuer,
+      fingerprintSha1: cert.sha1
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(':'),
+      fingerprintSha256: fingerprintSha256,
+      isSelfSigned: subject == issuer,
+      isWildcard: subject.contains('*.'),
+      validFrom: cert.startValidity,
+      validTo: cert.endValidity,
+    );
+  }
+
+  /// Compute SHA-256 fingerprint from a PEM-encoded certificate.
+  /// ponytail: naive PEM parser — strips BEGIN/END lines, base64-decodes
+  /// the body, hashes the DER bytes. Does not validate PEM structure.
+  static String? _sha256Fingerprint(String pem) {
+    try {
+      final lines = pem.split('\n');
+      final b64 = lines
+          .where((l) => !l.startsWith('-----'))
+          .join();
+      final der = base64.decode(b64);
+      final hash = sha256.convert(der);
+      return hash.bytes
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(':');
+    } catch (_) {
+      return null;
     }
   }
 

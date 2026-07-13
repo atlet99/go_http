@@ -36,6 +36,9 @@ class TlsInfo {
     this.subject,
     this.issuer,
     this.fingerprintSha1,
+    this.fingerprintSha256,
+    this.isSelfSigned,
+    this.isWildcard,
     this.validFrom,
     this.validTo,
   });
@@ -58,8 +61,19 @@ class TlsInfo {
   /// Issuer from the server certificate.
   final String? issuer;
 
-  /// SHA-1 fingerprint of the server certificate.
+  /// SHA-1 fingerprint of the server certificate (hex pairs, colon-separated).
   final String? fingerprintSha1;
+
+  /// SHA-256 fingerprint of the server certificate (hex pairs,
+  /// colon-separated). Computed from the DER-encoded certificate body.
+  final String? fingerprintSha256;
+
+  /// True when [issuer] equals [subject] (self-signed certificate).
+  final bool? isSelfSigned;
+
+  /// True when the subject contains a wildcard (`*.`), indicating the
+  /// certificate covers subdomains.
+  final bool? isWildcard;
 
   /// Certificate validity start date.
   final DateTime? validFrom;

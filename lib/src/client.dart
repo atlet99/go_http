@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'body_encoding.dart';
 import 'cancel/cancellation_token.dart';
 import 'codec/decoder.dart';
+import 'config.dart';
 import 'cookie/cookie_store.dart';
 import 'cookie/memory_cookie_store.dart';
 import 'enrichment.dart';
@@ -28,17 +29,6 @@ import 'transport/web_transport_stub.dart'
     if (dart.library.html) 'transport/web_transport.dart';
 import 'url.dart';
 
-/// A configuration validation issue returned by [GoHttpClient.validate].
-/// ponytail: simple field + message pair.
-class ValidationError {
-  const ValidationError(this.field, this.message);
-  final String field;
-
-  final String message;
-  @override
-  String toString() => '$field: $message';
-}
-
 /// Main HTTP client class.
 ///
 /// [GoHttpClient] orchestrates interceptors, retry/redirect policies, cookie
@@ -46,52 +36,75 @@ class ValidationError {
 class GoHttpClient {
   /// Default configuration preset — explicit constructor defaults as a
   /// factory, useful for JSON/YAML deserialization and env-merge patterns.
-  static GoHttpClient defaults() => GoHttpClient(transport: null);
+  static GoHttpClient defaults() =>
+      GoHttpClient(clientConfig: ClientConfig.defaults);
 
   GoHttpClient({
+    ClientConfig? clientConfig,
+    ExecutorConfig? executorConfig,
     Transport? transport,
     List<Interceptor> interceptors = const [],
     RetryPolicy? retryPolicy,
     RedirectPolicy? redirectPolicy,
     CookieStore? cookieStore,
     Timeout? timeout,
-    Duration connectTimeout = const Duration(seconds: 10),
-    Duration sendTimeout = const Duration(seconds: 30),
-    Duration receiveTimeout = const Duration(seconds: 30),
-    bool followRedirects = true,
-    int maxRedirects = 5,
-    bool autoDecompress = true,
-    int maxAuthRetries = 1,
+    Duration? connectTimeout,
+    Duration? sendTimeout,
+    Duration? receiveTimeout,
+    bool? followRedirects,
+    int? maxRedirects,
+    bool? autoDecompress,
+    int? maxAuthRetries,
     this.baseUrl,
     ProxyMounts? proxyMounts,
-    bool trustEnv = true,
+    bool? trustEnv,
     Object? verify,
-    Map<String, String> defaultHeaders = const {
-      'accept-encoding': 'gzip, deflate, br',
-    },
+    Map<String, String>? defaultHeaders,
     MetricsSink? metrics,
     EventHooks? eventHooks,
   })  : _transport = transport ??
+            clientConfig?.transport ??
             _createDefaultTransport(
-              proxyMounts: proxyMounts,
-              trustEnv: trustEnv,
-              verify: verify,
+              proxyMounts: proxyMounts ?? clientConfig?.proxyMounts,
+              trustEnv: trustEnv ?? clientConfig?.trustEnv ?? true,
+              verify: verify ?? clientConfig?.verify,
             ),
-        _interceptors = List.from(interceptors),
-        _retryPolicy = retryPolicy ?? DefaultRetryPolicy(),
-        _redirectPolicy = redirectPolicy ?? DefaultRedirectPolicy(),
-        _cookieStore = cookieStore ?? MemoryCookieStore(),
-        _timeout = timeout,
-        _connectTimeout = connectTimeout,
-        _sendTimeout = sendTimeout,
-        _receiveTimeout = receiveTimeout,
-        _followRedirects = followRedirects,
-        _maxRedirects = maxRedirects,
-        _autoDecompress = autoDecompress,
-        _maxAuthRetries = maxAuthRetries,
-        _defaultHeaders = Headers(defaultHeaders),
-        _metrics = metrics,
-        _eventHooks = eventHooks;
+        _interceptors = List.from(
+          interceptors.isNotEmpty
+              ? interceptors
+              : executorConfig?.interceptors ?? const [],
+        ),
+        _retryPolicy =
+            retryPolicy ?? clientConfig?.retryPolicy ?? DefaultRetryPolicy(),
+        _redirectPolicy = redirectPolicy ??
+            clientConfig?.redirectPolicy ??
+            DefaultRedirectPolicy(),
+        _cookieStore =
+            cookieStore ?? clientConfig?.cookieStore ?? MemoryCookieStore(),
+        _timeout = timeout ?? clientConfig?.timeout,
+        _connectTimeout = connectTimeout ??
+            clientConfig?.connectTimeout ??
+            const Duration(seconds: 10),
+        _sendTimeout = sendTimeout ??
+            clientConfig?.sendTimeout ??
+            const Duration(seconds: 30),
+        _receiveTimeout = receiveTimeout ??
+            clientConfig?.receiveTimeout ??
+            const Duration(seconds: 30),
+        _followRedirects =
+            followRedirects ?? clientConfig?.followRedirects ?? true,
+        _maxRedirects = maxRedirects ?? clientConfig?.maxRedirects ?? 5,
+        _autoDecompress =
+            autoDecompress ?? clientConfig?.autoDecompress ?? true,
+        _maxAuthRetries =
+            maxAuthRetries ?? clientConfig?.maxAuthRetries ?? 1,
+        _defaultHeaders = Headers(
+          defaultHeaders ??
+              clientConfig?.defaultHeaders ??
+              const {'accept-encoding': 'gzip, deflate, br'},
+        ),
+        _metrics = metrics ?? executorConfig?.metrics,
+        _eventHooks = eventHooks ?? executorConfig?.eventHooks;
 
   final Transport _transport;
   final List<Interceptor> _interceptors;
