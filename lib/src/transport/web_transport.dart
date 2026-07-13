@@ -28,6 +28,7 @@ class WebTransport implements Transport {
     int? maxRedirects,
     bool? autoDecompress,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) async {
     cancel?.throwIfCancelled();
 

@@ -20,6 +20,7 @@ Future<Response<T>> get<T>(
   CancellationToken? cancel,
   Decoder<T>? decoder,
   ProgressCallback? onProgress,
+  ProgressCallback? onSendProgress,
   GoHttpClient? client,
 }) {
   return (client ?? _defaultClient()).get<T>(
@@ -28,6 +29,7 @@ Future<Response<T>> get<T>(
     cancel: cancel,
     decoder: decoder,
     onProgress: onProgress,
+    onSendProgress: onSendProgress,
   );
 }
 
@@ -40,6 +42,7 @@ Future<Response<T>> post<T>(
   CancellationToken? cancel,
   Decoder<T>? decoder,
   ProgressCallback? onProgress,
+  ProgressCallback? onSendProgress,
   GoHttpClient? client,
 }) {
   return (client ?? _defaultClient()).post<T>(
@@ -50,6 +53,7 @@ Future<Response<T>> post<T>(
     cancel: cancel,
     decoder: decoder,
     onProgress: onProgress,
+    onSendProgress: onSendProgress,
   );
 }
 
@@ -62,6 +66,7 @@ Future<Response<T>> put<T>(
   CancellationToken? cancel,
   Decoder<T>? decoder,
   ProgressCallback? onProgress,
+  ProgressCallback? onSendProgress,
   GoHttpClient? client,
 }) {
   return (client ?? _defaultClient()).put<T>(
@@ -72,6 +77,7 @@ Future<Response<T>> put<T>(
     cancel: cancel,
     decoder: decoder,
     onProgress: onProgress,
+    onSendProgress: onSendProgress,
   );
 }
 
@@ -82,6 +88,7 @@ Future<Response<T>> delete<T>(
   CancellationToken? cancel,
   Decoder<T>? decoder,
   ProgressCallback? onProgress,
+  ProgressCallback? onSendProgress,
   GoHttpClient? client,
 }) {
   return (client ?? _defaultClient()).delete<T>(
@@ -90,6 +97,7 @@ Future<Response<T>> delete<T>(
     cancel: cancel,
     decoder: decoder,
     onProgress: onProgress,
+    onSendProgress: onSendProgress,
   );
 }
 
@@ -102,6 +110,7 @@ Future<Response<T>> patch<T>(
   CancellationToken? cancel,
   Decoder<T>? decoder,
   ProgressCallback? onProgress,
+  ProgressCallback? onSendProgress,
   GoHttpClient? client,
 }) {
   return (client ?? _defaultClient()).patch<T>(
@@ -112,6 +121,7 @@ Future<Response<T>> patch<T>(
     cancel: cancel,
     decoder: decoder,
     onProgress: onProgress,
+    onSendProgress: onSendProgress,
   );
 }
 
@@ -121,6 +131,7 @@ Future<Response<T>> head<T>(
   RequestOptions? options,
   CancellationToken? cancel,
   Decoder<T>? decoder,
+  ProgressCallback? onProgress,
   GoHttpClient? client,
 }) {
   return (client ?? _defaultClient()).head<T>(
@@ -128,6 +139,7 @@ Future<Response<T>> head<T>(
     options: options,
     cancel: cancel,
     decoder: decoder,
+    onProgress: onProgress,
   );
 }
 
@@ -137,6 +149,7 @@ Future<Response<T>> options<T>(
   RequestOptions? options,
   CancellationToken? cancel,
   Decoder<T>? decoder,
+  ProgressCallback? onProgress,
   GoHttpClient? client,
 }) {
   return (client ?? _defaultClient()).options<T>(
@@ -144,5 +157,6 @@ Future<Response<T>> options<T>(
     options: options,
     cancel: cancel,
     decoder: decoder,
+    onProgress: onProgress,
   );
 }

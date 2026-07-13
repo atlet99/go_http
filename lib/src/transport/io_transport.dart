@@ -66,6 +66,7 @@ class IoTransport implements Transport {
     int? maxRedirects,
     bool? autoDecompress,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) async {
     cancel?.throwIfCancelled();
 
@@ -199,14 +200,35 @@ class IoTransport implements Transport {
       // is only done for idempotent methods where body is replayable or empty)
       if (request.body != null && !gzipFallbackRetried) {
         if (request.body is String) {
-          ioRequest.write(request.body as String);
+          final s = request.body as String;
+          ioRequest.write(s);
+          if (onSendProgress != null) {
+            onSendProgress(s.length, s.length);
+          }
         } else if (request.body is Uint8List) {
-          ioRequest.add(request.body as Uint8List);
+          final b = request.body as Uint8List;
+          ioRequest.add(b);
+          if (onSendProgress != null) {
+            onSendProgress(b.length, b.length);
+          }
         } else if (request.body is List<int>) {
-          ioRequest.add(request.body as List<int>);
+          final b = request.body as List<int>;
+          ioRequest.add(b);
+          if (onSendProgress != null) {
+            onSendProgress(b.length, b.length);
+          }
         } else if (request.body is Stream<List<int>>) {
+          var sent = 0;
+          final stream = request.body as Stream<List<int>>;
+          final counting = stream.map((chunk) {
+            sent += chunk.length;
+            if (onSendProgress != null) {
+              onSendProgress(sent, -1);
+            }
+            return chunk;
+          });
           try {
-            await ioRequest.addStream(request.body as Stream<List<int>>);
+            await ioRequest.addStream(counting);
           } on HttpException catch (e) {
             throw NetworkError(
               request: request,

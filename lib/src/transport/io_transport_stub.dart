@@ -35,6 +35,7 @@ class IoTransport implements Transport {
     int? maxRedirects,
     bool? autoDecompress,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) {
     throw UnsupportedError('IoTransport is only available on native platforms');
   }

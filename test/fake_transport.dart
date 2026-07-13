@@ -27,6 +27,7 @@ class FakeTransport implements Transport {
     int? maxRedirects,
     bool? autoDecompress,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) async {
     cancel?.throwIfCancelled();
     sent.add(request);

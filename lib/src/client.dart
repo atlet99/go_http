@@ -168,6 +168,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) {
     return request<T>(
       Request(
@@ -179,6 +180,7 @@ class GoHttpClient {
       cancel: cancel,
       decoder: decoder,
       onProgress: onProgress,
+      onSendProgress: onSendProgress,
     );
   }
 
@@ -191,6 +193,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) {
     final enc = encodeRequest(
       data: data,
@@ -208,6 +211,7 @@ class GoHttpClient {
       cancel: cancel,
       decoder: decoder,
       onProgress: onProgress,
+      onSendProgress: onSendProgress,
     );
   }
 
@@ -220,6 +224,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) {
     final enc = encodeRequest(
       data: data,
@@ -237,6 +242,7 @@ class GoHttpClient {
       cancel: cancel,
       decoder: decoder,
       onProgress: onProgress,
+      onSendProgress: onSendProgress,
     );
   }
 
@@ -249,6 +255,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) {
     final enc = encodeRequest(
       data: data,
@@ -266,6 +273,7 @@ class GoHttpClient {
       cancel: cancel,
       decoder: decoder,
       onProgress: onProgress,
+      onSendProgress: onSendProgress,
     );
   }
 
@@ -278,6 +286,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) {
     final enc = encodeRequest(
       data: data,
@@ -295,6 +304,7 @@ class GoHttpClient {
       cancel: cancel,
       decoder: decoder,
       onProgress: onProgress,
+      onSendProgress: onSendProgress,
     );
   }
 
@@ -304,6 +314,7 @@ class GoHttpClient {
     RequestOptions? options,
     CancellationToken? cancel,
     Decoder<T>? decoder,
+    ProgressCallback? onProgress,
   }) {
     return request<T>(
       Request(
@@ -314,6 +325,7 @@ class GoHttpClient {
       ),
       cancel: cancel,
       decoder: decoder,
+      onProgress: onProgress,
     );
   }
 
@@ -323,6 +335,7 @@ class GoHttpClient {
     RequestOptions? options,
     CancellationToken? cancel,
     Decoder<T>? decoder,
+    ProgressCallback? onProgress,
   }) {
     return request<T>(
       Request(
@@ -333,6 +346,7 @@ class GoHttpClient {
       ),
       cancel: cancel,
       decoder: decoder,
+      onProgress: onProgress,
     );
   }
 
@@ -368,6 +382,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) async {
     if (_isShuttingDown) {
       throw ClientShutdownError(request: req);
@@ -379,6 +394,7 @@ class GoHttpClient {
         cancel: cancel,
         decoder: decoder,
         onProgress: onProgress,
+        onSendProgress: onSendProgress,
       );
     } finally {
       _inFlight--;
@@ -393,6 +409,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) async {
     var request = req;
 
@@ -447,6 +464,7 @@ class GoHttpClient {
           maxRedirects: maxRedirects,
           autoDecompress: autoDecompress,
           onProgress: onProgress,
+          onSendProgress: onSendProgress,
         );
 
         // Store cookies from response
@@ -606,12 +624,14 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) =>
       send<T>(
         buildRequest(req),
         cancel: cancel,
         decoder: decoder,
         onProgress: onProgress,
+        onSendProgress: onSendProgress,
       );
 
   Timeout? _resolveTimeout(Object? timeout) {
