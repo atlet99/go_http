@@ -213,7 +213,8 @@ class ClientConfig {
     final verifyStr = env['GO_HTTP_VERIFY'];
     if (verifyStr != null) {
       c = c.copyWith(
-          verify: verifyStr == '0' || verifyStr == 'false' ? false : verifyStr,);
+        verify: verifyStr == '0' || verifyStr == 'false' ? false : verifyStr,
+      );
     }
 
     return c;

@@ -49,6 +49,10 @@ example-download: ## Run example/download_progress.dart
 	@echo "$(GREEN)Running example/download_progress.dart...$(NC)"
 	@dart run example/download_progress.dart
 
+example-batch-config: ## Run example/batch_config.dart
+	@echo "$(GREEN)Running example/batch_config.dart...$(NC)"
+	@dart run example/batch_config.dart
+
 examples: example-simple-get example-post-json example-cancel example-retry example-download ## Run all examples
 
 # Versioning

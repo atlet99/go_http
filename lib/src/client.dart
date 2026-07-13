@@ -655,7 +655,9 @@ class GoHttpClient {
 
   /// Build enrichment data after a response is received.
   Future<ResponseEnrichment> _buildEnrichment(
-      Request req, Response resp,) async {
+    Request req,
+    Response resp,
+  ) async {
     Map<String, dynamic>? extra;
     if (_enrichers.isNotEmpty) {
       extra = {};

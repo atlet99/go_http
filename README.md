@@ -36,12 +36,19 @@ transport, batch execution, and a powerful interceptor system.
 - **Status codes** — `StatusCode` enum with 33 entries and category predicates
 - **Metrics** — timeline events via `MetricsSink` / `ConsoleMetricsSink`
 - **Base URL** — relative request URIs resolved against a client-level `baseUrl`
+- **Two-level config** — `ClientConfig` (transport/timeout/TLS) + `ExecutorConfig` (interceptors/hooks/enrichers)
+- **Progress reporter** — per-batch RPS/percentage/ETA via `ProgressReporter`
+- **Response enricher SPI** — pluggable enrichers returning custom metadata in `ResponseEnrichment.extra`
+- **Response filters** — `StatusCodeFilter`, `RegexFilter`, `Match` (OR/AND) for inclusion/exclusion
+- **Log routing** — `stderrLog` helper keeps stdout clean for JSONL/result output
+- **BearerAuth** — stateless `BearerAuth('token')` strategy with deprecated legacy flow
+- **PortSpec & Headers.parse** — nmap-style `http:8080,https:443` and `Key: Value` parser
 
 ## Installation
 
 ```yaml
 dependencies:
-  go_http: ^0.2.1
+  go_http: ^0.2.2
 ```
 
 ```bash
@@ -217,7 +224,14 @@ final client = GoHttpClient(
 );
 ```
 
-Bearer token with auto-refresh:
+Bearer token (pre-resolved):
+```dart
+final client = GoHttpClient(
+  interceptors: [AuthInterceptor(auth: BearerAuth('my-token'))],
+);
+```
+
+Bearer token with auto-refresh (legacy, deprecated):
 ```dart
 String? token;
 
@@ -232,6 +246,39 @@ final client = GoHttpClient(
     ),
   ],
 );
+```
+
+### Configuration
+
+Separate `ClientConfig` (transport/TLS/timeout/proxy/cookies) from `ExecutorConfig`
+(interceptors/metrics/hooks/enrichers). Both are optional — every field falls back
+to a sensible default.
+
+```dart
+final client = GoHttpClient(
+  clientConfig: const ClientConfig(
+    connectTimeout: Duration(seconds: 5),
+    sendTimeout: Duration(seconds: 15),
+    followRedirects: true,
+    maxRedirects: 10,
+    trustEnv: true,
+  ),
+  executorConfig: ExecutorConfig(
+    interceptors: [TimingInterceptor()],
+    enrichers: [CustomEnricher()],
+  ),
+);
+
+final errors = client.validate(); // List<ValidationError>
+```
+
+Config from JSON / env:
+```dart
+final cfg = ClientConfig.fromJson({
+  'connectTimeout': 5000,
+  'maxRedirects': 10,
+});
+final withEnv = ClientConfig.mergeEnv(cfg); // GO_HTTP_* overrides
 ```
 
 ### Event Hooks
@@ -345,6 +392,25 @@ for (final result in results) {
 }
 ```
 
+Batch with progress reporter:
+```dart
+final progress = ProgressReporter(total: 1000);
+final results = await executor.run(
+  requests,
+  onProgress: (done, total) => progress.tick(),
+);
+// Done: progress.summary → "50.1% 125rps ETA 4s"
+```
+
+Multiple result callbacks:
+```dart
+final results = await executor.run(
+  requests,
+  onResult: logResult,
+  onResults: [writeToSink, updateCounter],
+);
+```
+
 ### Result Sinks
 
 ```dart
@@ -354,6 +420,28 @@ for (final result in results) {
 }
 await sink.close();
 ```
+
+Writes are two-phase (temp file + atomic rename on `close()`) — safe for
+parallel batch writers. Also available: `CsvSink` with formula-injection
+sanitization.
+
+### Response Filters
+
+```dart
+// Include only 2xx + body matching a pattern
+final filter = Match.any([
+  StatusCodeFilter.between(200, 299),
+  RegexFilter(RegExp(r'admin')),
+]);
+
+if (filter.matches(response)) {
+  // process
+}
+```
+
+Composable via `Match.any` (OR, short-circuit) and `Match.all` (AND,
+short-circuit on first miss). Ready for inclusion/exclusion in batch
+pipelines.
 
 ### Response Model
 
@@ -429,6 +517,7 @@ dart run example/cancel_request.dart
 dart run example/retry_policy.dart
 dart run example/download_progress.dart
 dart run example/post_json.dart
+dart run example/batch_config.dart
 ```
 
 ## License

@@ -29,6 +29,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GoHttpClient.validate()` — returns `List<ValidationError>` with config issues (timeout <= 0, redirects < 0, etc.). Non-throwing, suitable for UI/config check.
 - `AggregateError` — multierr equivalent collecting multiple errors into one (for close-multiple-resources patterns).
 - `ValidationError` class — field + message pair for config validation results.
+- Two-level config: `ClientConfig` (transport/timeout/TLS/proxy/cookies) + `ExecutorConfig` (interceptors/metrics/hooks/enrichers), both `validate()`, both optional and backward-compatible in `GoHttpClient` constructor.
+- `ProgressReporter` — per-batch progress with RPS, percentage, elapsed, and ETA (`ProgressReporter.summary`).
+- `ResponseEnricher` SPI — `abstract class ResponseEnricher` registered via `ExecutorConfig.enrichers`, called per response in enrichment pipeline. Extra data lands in `ResponseEnrichment.extra`.
+- `ResponseFilter` interface + `StatusCodeFilter`, `RegexFilter`, `Match` (OR/AND short-circuit) — ready for inclusion/exclusion in batch pipelines.
+- `BearerAuth` — stateless `BearerAuth('token')` strategy for `AuthInterceptor`. Legacy `tokenProvider`/`tokenRefresher` marked `@Deprecated`.
+- `stderrLog` — log helper writing to `dart:io` stderr (fallback to `print` on Web). `LoggingInterceptor` now defaults to `stderrLog`, keeping stdout clean for JSONL/result output.
+- `ClientConfig.fromJson()` + `mergeEnv()` — load config from JSON map, override from `GO_HTTP_*` env vars.
+- `PortSpec.parse('http:8080,https:443')` — nmap-style scheme→port mapping.
+- `Headers.parse('Content-Type: application/json')` factory — one or more `Key: Value` lines.
+- `ClientConfig.copyWith()` — produce a modified copy preserving other fields.
+- Two-phase file writing — `ResultSink.jsonl()`/`.csv()` write to a temp file (`O_EXCL` + incrementing suffix) and atomically rename on `close()`, preventing parallel-writer corruption.
+- `ClientConfig.minTlsVersion` / `maxTlsVersion` — reserved config surface for TLS version constraints (forward-compat, SDK pending).
+- `ResultCallback` typedef + `List<ResultCallback>? onResults` param on `BatchExecutor.run()` — chain multiple callbacks alongside legacy `onResult`.
 
 ## [0.2.1] - 2026-07-13
 

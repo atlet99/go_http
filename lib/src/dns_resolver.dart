@@ -92,8 +92,13 @@ class CachedDnsResolver implements DnsResolver {
       return address;
     } on Object catch (e) {
       final msg = e.toString();
-      _set(key,
-          _CacheEntry.negative(Duration(seconds: negativeTtlSeconds), msg,),);
+      _set(
+        key,
+        _CacheEntry.negative(
+          Duration(seconds: negativeTtlSeconds),
+          msg,
+        ),
+      );
       rethrow;
     }
   }
