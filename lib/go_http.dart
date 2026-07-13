@@ -16,6 +16,7 @@ export 'src/codec/json_decoder.dart';
 export 'src/config.dart';
 export 'src/cookie/cookie_store.dart';
 export 'src/cookie/memory_cookie_store.dart';
+export 'src/cookie/persistent_cookie.dart';
 export 'src/decoders_stub.dart' if (dart.library.io) 'src/decoders.dart';
 export 'src/dialer.dart';
 export 'src/dns_resolver.dart';
