@@ -307,6 +307,19 @@ class MaxBytesReadError extends RequestError {
   final int actualBytes;
 }
 
+/// Collects multiple errors into one, analogous to Go's `multierr`.
+/// Useful when closing multiple resources — one error should not mask others.
+/// ponytail: simple list wrapper.
+class AggregateError extends HttpError {
+  AggregateError(this.errors, {String? message})
+      : super(
+          message: message ?? errors.map((e) => e.toString()).join('; '),
+        );
+
+  /// The individual errors that were aggregated.
+  final List<Object> errors;
+}
+
 /// Sentinel returned by [Interceptor.onError] to signal that the error was
 /// resolved (e.g. credentials were refreshed) and the request should be sent
 /// again.

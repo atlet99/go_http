@@ -28,6 +28,17 @@ import 'transport/web_transport_stub.dart'
     if (dart.library.html) 'transport/web_transport.dart';
 import 'url.dart';
 
+/// A configuration validation issue returned by [GoHttpClient.validate].
+/// ponytail: simple field + message pair.
+class ValidationError {
+  const ValidationError(this.field, this.message);
+  final String field;
+
+  final String message;
+  @override
+  String toString() => '$field: $message';
+}
+
 /// Main HTTP client class.
 ///
 /// [GoHttpClient] orchestrates interceptors, retry/redirect policies, cookie
@@ -624,11 +635,36 @@ class GoHttpClient {
     return ResponseEnrichment(
       trace: req.trace,
       remoteAddress: resp.remoteAddress,
+      tlsInfo: resp.tlsInfo,
     );
   }
 
   /// Expose the redirect policy (used by tests / advanced configuration)
   RedirectPolicy? get redirectPolicy => _redirectPolicy;
+
+  /// Validate client configuration. Returns a list of problems found;
+  /// empty list means the configuration is valid.
+  /// ponytail: basic checks — add more as needed.
+  List<ValidationError> validate() {
+    final errors = <ValidationError>[];
+    if (_connectTimeout <= Duration.zero) {
+      errors.add(const ValidationError('connectTimeout', 'must be positive'));
+    }
+    if (_sendTimeout <= Duration.zero) {
+      errors.add(const ValidationError('sendTimeout', 'must be positive'));
+    }
+    if (_receiveTimeout <= Duration.zero) {
+      errors.add(const ValidationError('receiveTimeout', 'must be positive'));
+    }
+    if (_maxRedirects < 0) {
+      errors.add(const ValidationError('maxRedirects', 'must be non-negative'));
+    }
+    if (_maxAuthRetries < 0) {
+      errors
+          .add(const ValidationError('maxAuthRetries', 'must be non-negative'));
+    }
+    return errors;
+  }
 
   /// Soft shutdown: stop accepting new requests, wait for in-flight to finish.
   /// Returns a future that completes once all active requests complete.

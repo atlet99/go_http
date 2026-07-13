@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Dialer` abstract class + `SocketDialer` — pluggable socket-level dialer interface (integration with `IoTransport` pending transport rewrite).
 - IP-override: `RequestOptions.dialAddress` — connect to a specific IP:port while keeping the original hostname in the `Host` header.
 - Dialed-IP exposure: `Response.remoteAddress` and `ResponseEnrichment.remoteAddress` — IP address of the remote server that handled the request.
+- `TlsInfo` enrichment: `subject`, `issuer`, `fingerprintSha1`, `validFrom`, `validTo` fields; populated by `IoTransport` from `HttpClientResponse.certificate`.
+- `GoHttpClient.validate()` — returns `List<ValidationError>` with config issues (timeout <= 0, redirects < 0, etc.). Non-throwing, suitable for UI/config check.
+- `AggregateError` — multierr equivalent collecting multiple errors into one (for close-multiple-resources patterns).
+- `ValidationError` class — field + message pair for config validation results.
 
 ## [0.2.1] - 2026-07-13
 

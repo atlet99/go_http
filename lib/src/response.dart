@@ -16,6 +16,7 @@ class Response<T> {
     this.statusMessage,
     this.elapsed = Duration.zero,
     this.remoteAddress,
+    this.tlsInfo,
     this.enrichment,
     List<Response>? history,
   })  : headers = headers is Headers ? headers : Headers(headers),
@@ -36,6 +37,9 @@ class Response<T> {
   /// The IP address of the remote server that handled this response.
   /// Populated by the transport; `null` when unavailable.
   final String? remoteAddress;
+
+  /// TLS handshake details, populated by the transport when available.
+  final TlsInfo? tlsInfo;
 
   /// Optional enrichment (timing breakdown, TLS info, etc.).
   /// Populated when the transport collects it; `null` otherwise.
@@ -173,6 +177,7 @@ class Response<T> {
     String? statusMessage,
     Duration? elapsed,
     String? remoteAddress,
+    TlsInfo? tlsInfo,
     ResponseEnrichment? enrichment,
     List<Response>? history,
   }) {
@@ -184,6 +189,7 @@ class Response<T> {
       statusMessage: statusMessage ?? this.statusMessage,
       elapsed: elapsed ?? this.elapsed,
       remoteAddress: remoteAddress ?? this.remoteAddress,
+      tlsInfo: tlsInfo ?? this.tlsInfo,
       enrichment: enrichment ?? this.enrichment,
       history: history ?? this.history,
     );

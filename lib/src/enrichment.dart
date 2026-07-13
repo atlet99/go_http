@@ -33,6 +33,11 @@ class TlsInfo {
     this.cipherSuite,
     this.serverCertificate,
     this.handshakeDuration,
+    this.subject,
+    this.issuer,
+    this.fingerprintSha1,
+    this.validFrom,
+    this.validTo,
   });
 
   /// e.g. `"TLSv1.3"`
@@ -46,6 +51,21 @@ class TlsInfo {
 
   /// Duration of the TLS handshake.
   final Duration? handshakeDuration;
+
+  /// Subject CN/AN from the server certificate.
+  final String? subject;
+
+  /// Issuer from the server certificate.
+  final String? issuer;
+
+  /// SHA-1 fingerprint of the server certificate.
+  final String? fingerprintSha1;
+
+  /// Certificate validity start date.
+  final DateTime? validFrom;
+
+  /// Certificate validity end date.
+  final DateTime? validTo;
 }
 
 /// Optional enrichment data attached to a [Response].

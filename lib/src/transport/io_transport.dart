@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import '../cancel/cancellation_token.dart';
 import '../decoders.dart';
+import '../enrichment.dart';
 import '../errors.dart';
 import '../headers.dart';
 import '../proxy.dart';
@@ -246,6 +247,19 @@ class IoTransport implements Transport {
       }
 
       final remoteAddr = ioResponse.connectionInfo?.remoteAddress.address;
+      final cert = ioResponse.certificate;
+      final tlsInfo = cert != null
+          ? TlsInfo(
+              serverCertificate: cert.pem,
+              subject: cert.subject,
+              issuer: cert.issuer,
+              fingerprintSha1: cert.sha1
+                  .map((b) => b.toRadixString(16).padLeft(2, '0'))
+                  .join(':'),
+              validFrom: cert.startValidity,
+              validTo: cert.endValidity,
+            )
+          : null;
 
       return Response(
         request: request,
@@ -254,6 +268,7 @@ class IoTransport implements Transport {
         data: decodedBody,
         statusMessage: ioResponse.reasonPhrase,
         remoteAddress: remoteAddr,
+        tlsInfo: tlsInfo,
       );
     } on HttpError {
       rethrow;
