@@ -164,7 +164,8 @@ void main() {
 
       await client.get<Uint8List>(
         Uri.parse('https://x.test/path'),
-        options: const RequestOptions(queryParameters: {'a': '1', 'b': '2'}),
+        options:
+            RequestOptions(queryParameters: QueryParams({'a': '1', 'b': '2'})),
       );
 
       expect(

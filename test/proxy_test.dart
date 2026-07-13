@@ -85,8 +85,7 @@ void main() {
         URLPattern.parse('https://api.internal:443'):
             Proxy.parse('http://exact:3'),
       });
-      final p =
-          mounts.findProxy(Uri.parse('https://api.internal:443'));
+      final p = mounts.findProxy(Uri.parse('https://api.internal:443'));
       expect(p?.authority, 'exact:3');
     });
 

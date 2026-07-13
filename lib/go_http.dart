@@ -12,6 +12,7 @@ export 'src/codec/json_decoder.dart';
 export 'src/cookie/cookie_store.dart';
 export 'src/cookie/memory_cookie_store.dart';
 export 'src/errors.dart';
+export 'src/event_hooks.dart';
 export 'src/headers.dart';
 export 'src/interceptors/auth_interceptor.dart';
 export 'src/interceptors/interceptor.dart';
@@ -25,6 +26,8 @@ export 'src/policy/retry_policy.dart';
 export 'src/proxy.dart';
 export 'src/request.dart';
 export 'src/response.dart';
+export 'src/result.dart';
+export 'src/batch.dart';
 export 'src/status_codes.dart';
 export 'src/timeout.dart';
 export 'src/transport/io_transport_stub.dart'
@@ -33,3 +36,4 @@ export 'src/transport/mock_transport.dart';
 export 'src/transport/transport.dart';
 export 'src/transport/web_transport_stub.dart'
     if (dart.library.html) 'src/transport/web_transport.dart';
+export 'src/url.dart';

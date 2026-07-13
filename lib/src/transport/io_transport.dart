@@ -19,7 +19,7 @@ class IoTransport implements Transport {
     ProxyMounts? proxyMounts,
     bool trustEnv = true,
     Object? verify,
-  })  : _httpClient = httpClient ??
+  }) : _httpClient = httpClient ??
             _buildClient(
               maxConnectionsPerHost,
               autoDecompress,

@@ -1,8 +1,8 @@
 import 'package:meta/meta.dart';
 
 import 'headers.dart';
-
 import 'timeout.dart';
+import 'url.dart';
 
 /// Sentinel used on per-request options to mean "fall back to the client
 /// default" — distinct from an explicit `null`, which means "disable".
@@ -43,7 +43,7 @@ class RequestOptions {
   });
 
   final Map<String, String>? headers;
-  final Map<String, String>? queryParameters;
+  final QueryParams? queryParameters;
   final Duration? connectTimeout;
   final Duration? sendTimeout;
   final Duration? receiveTimeout;
@@ -58,7 +58,7 @@ class RequestOptions {
 
   RequestOptions copyWith({
     Map<String, String>? headers,
-    Map<String, String>? queryParameters,
+    QueryParams? queryParameters,
     Duration? connectTimeout,
     Duration? sendTimeout,
     Duration? receiveTimeout,

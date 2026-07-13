@@ -5,6 +5,7 @@ import 'codec/decoder.dart';
 import 'cookie/cookie_store.dart';
 import 'cookie/memory_cookie_store.dart';
 import 'errors.dart';
+import 'event_hooks.dart';
 import 'headers.dart';
 import 'interceptors/interceptor.dart';
 import 'metrics/metrics_sink.dart';
@@ -22,6 +23,7 @@ import 'transport/platform_checker_stub.dart'
 import 'transport/transport.dart';
 import 'transport/web_transport_stub.dart'
     if (dart.library.html) 'transport/web_transport.dart';
+import 'url.dart';
 
 /// Main HTTP client class.
 ///
@@ -50,11 +52,13 @@ class GoHttpClient {
       'accept-encoding': 'gzip, br',
     },
     MetricsSink? metrics,
-  })  : _transport = transport ?? _createDefaultTransport(
-          proxyMounts: proxyMounts,
-          trustEnv: trustEnv,
-          verify: verify,
-        ),
+    EventHooks? eventHooks,
+  })  : _transport = transport ??
+            _createDefaultTransport(
+              proxyMounts: proxyMounts,
+              trustEnv: trustEnv,
+              verify: verify,
+            ),
         _interceptors = List.from(interceptors),
         _retryPolicy = retryPolicy ?? DefaultRetryPolicy(),
         _redirectPolicy = redirectPolicy ?? DefaultRedirectPolicy(),
@@ -68,7 +72,8 @@ class GoHttpClient {
         _autoDecompress = autoDecompress,
         _maxAuthRetries = maxAuthRetries,
         _defaultHeaders = Headers(defaultHeaders),
-        _metrics = metrics;
+        _metrics = metrics,
+        _eventHooks = eventHooks;
 
   final Transport _transport;
   final List<Interceptor> _interceptors;
@@ -85,6 +90,10 @@ class GoHttpClient {
   final int _maxAuthRetries;
   final Headers _defaultHeaders;
   final MetricsSink? _metrics;
+  EventHooks? _eventHooks;
+
+  /// Hot-swappable request/response callbacks (see [EventHooks]).
+  set eventHooks(EventHooks? hooks) => _eventHooks = hooks;
 
   /// Optional base URL; a relative request URI is resolved against it.
   final String? baseUrl;
@@ -322,6 +331,10 @@ class GoHttpClient {
         // CancellationError, and never retried).
         cancel?.throwIfCancelled();
 
+        for (final hook in _eventHooks?.request ?? const []) {
+          hook(request);
+        }
+
         final response = await _transport.send(
           request,
           cancel: cancel,
@@ -347,6 +360,10 @@ class GoHttpClient {
         var resp = response;
         for (final interceptor in _interceptors) {
           resp = await interceptor.onResponse(resp);
+        }
+
+        for (final hook in _eventHooks?.response ?? const []) {
+          hook(resp);
         }
 
         // Metrics: request end
@@ -487,11 +504,9 @@ class GoHttpClient {
     return request.copyWith(headers: headers);
   }
 
-  Request _applyQueryParams(Request request, Map<String, String> params) {
+  Request _applyQueryParams(Request request, QueryParams params) {
     final uri = request.uri;
-    final extra = params.entries
-        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
-        .join('&');
+    final extra = params.toQueryString();
     final query = uri.query.isEmpty ? extra : '${uri.query}&$extra';
     return request.copyWith(uri: uri.replace(query: query));
   }
