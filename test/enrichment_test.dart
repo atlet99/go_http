@@ -92,7 +92,7 @@ void main() {
         executorConfig: ExecutorConfig(enrichers: [enricher]),
       );
       final res = await client.get<Uint8List>(Uri.parse('https://x.test'));
-      expect(res.enrichment?.extra['x-custom'], 'hello');
+      expect(res.enrichment!.extra!['x-custom'], 'hello');
       expect(enricher.callCount, 1);
       client.dispose();
     });
@@ -103,8 +103,11 @@ class _TestEnricher extends ResponseEnricher {
   var callCount = 0;
 
   @override
-  void enrich(Map<String, Object?> extra) {
-    extra['x-custom'] = 'hello';
+  String get name => 'test';
+
+  @override
+  Future<Map<String, dynamic>> enrich(Response response) async {
     callCount++;
+    return {'x-custom': 'hello'};
   }
 }
