@@ -3,7 +3,10 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../cancel/cancellation_token.dart';
+import '../decoders.dart';
 import '../errors.dart';
+import '../headers.dart';
+import '../proxy.dart';
 import '../request.dart';
 import '../response.dart';
 import 'transport.dart';
@@ -14,10 +17,16 @@ class IoTransport implements Transport {
     HttpClient? httpClient,
     this.maxConnectionsPerHost = 6,
     this.autoDecompress = true,
+    ProxyMounts? proxyMounts,
+    bool trustEnv = true,
+    Object? verify,
   }) : _httpClient = httpClient ??
-            (HttpClient()
-              ..maxConnectionsPerHost = maxConnectionsPerHost
-              ..autoUncompress = autoDecompress);
+            _buildClient(
+              maxConnectionsPerHost,
+              proxyMounts,
+              trustEnv,
+              verify,
+            );
 
   final HttpClient _httpClient;
   final int maxConnectionsPerHost;
@@ -48,10 +57,9 @@ class IoTransport implements Transport {
           .openUrl(request.methodString, request.uri)
           .timeout(connect);
     } on TimeoutException {
-      throw TimeoutError(
+      throw ConnectTimeoutError(
         request: request,
         timeout: connect,
-        message: 'Connection timeout after ${connect.inSeconds}s',
       );
     }
 
@@ -66,9 +74,9 @@ class IoTransport implements Transport {
     }
 
     // Set headers
-    request.headers.forEach((key, value) {
-      ioRequest.headers.set(key, value);
-    });
+    for (final entry in request.headers.multiItems) {
+      ioRequest.headers.set(entry.key, entry.value);
+    }
 
     // Set body if present
     if (request.body != null) {
@@ -101,10 +109,9 @@ class IoTransport implements Transport {
       try {
         ioResponse = await ioRequest.close().timeout(send);
       } on TimeoutException {
-        throw TimeoutError(
+        throw WriteTimeoutError(
           request: request,
           timeout: send,
-          message: 'Send timeout after ${send.inSeconds}s',
         );
       }
 
@@ -128,10 +135,9 @@ class IoTransport implements Transport {
           }
         }
       } on TimeoutException {
-        throw TimeoutError(
+        throw ReadTimeoutError(
           request: request,
           timeout: receive,
-          message: 'Receive timeout after ${receive.inSeconds}s',
         );
       }
 
@@ -139,31 +145,36 @@ class IoTransport implements Transport {
       final body = Uint8List.fromList(chunks.expand((c) => c).toList());
 
       // Convert headers (lowercase keys; keep multi-value set-cookie separate)
-      final headers = <String, String>{};
-      final setCookies = <String>[];
+      final headers = Headers();
       ioResponse.headers.forEach((name, values) {
         final lower = name.toLowerCase();
-        if (lower == 'set-cookie') {
-          setCookies.addAll(values);
-        } else {
-          headers[lower] = values.join(', ');
+        for (final value in values) {
+          headers.add(lower, value);
         }
       });
-      if (setCookies.isNotEmpty) {
-        headers['set-cookie'] = setCookies.join('\n');
+
+      // Manual content-encoding decode (autoUncompress is always false;
+      // dart:io compression is disabled so we control decoding).
+      final decodedBody = shouldDecompress
+          ? Uint8List.fromList(
+              decodeContentEncoding(body, headers['content-encoding']),
+            )
+          : body;
+      if (shouldDecompress) {
+        headers.remove('content-encoding');
       }
 
       return Response(
         request: request,
         statusCode: ioResponse.statusCode,
         headers: headers,
-        data: body,
+        data: decodedBody,
         statusMessage: ioResponse.reasonPhrase,
       );
     } on HttpError {
       rethrow;
     } on SocketException catch (e) {
-      throw NetworkError(
+      throw ConnectError(
         request: request,
         message: 'Network error: ${e.message}',
         originalError: e,
@@ -191,5 +202,35 @@ class IoTransport implements Transport {
   @override
   void dispose() {
     _httpClient.close(force: true);
+  }
+
+  static HttpClient _buildClient(
+    int maxConnectionsPerHost,
+    ProxyMounts? proxyMounts,
+    bool trustEnv,
+    Object? verify,
+  ) {
+    final client = HttpClient(context: buildSecurityContext(verify, trustEnv))
+      ..maxConnectionsPerHost = maxConnectionsPerHost
+      ..autoUncompress = false;
+
+    if (verify == false) {
+      // No certificate verification.
+      client.badCertificateCallback = (_, __, ___) => true;
+    }
+
+    if (proxyMounts != null || !trustEnv) {
+      client.findProxy = (uri) {
+        final proxy = proxyMounts?.findProxy(uri);
+        if (proxy != null) {
+          return proxy.findProxyUrl; // Proxy or throws for socks
+        }
+        if (!trustEnv) {
+          return 'DIRECT';
+        }
+        return HttpClient.findProxyFromEnvironment(uri);
+      };
+    }
+    return client;
   }
 }

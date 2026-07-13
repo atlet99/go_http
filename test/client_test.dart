@@ -41,7 +41,7 @@ void main() {
       client.dispose();
     });
 
-    test('throws HttpResponseError after retries are exhausted', () async {
+    test('throws HttpStatusError after retries are exhausted', () async {
       final transport = FakeTransport([status(503)]);
       final client = GoHttpClient(
         transport: transport,
@@ -54,7 +54,7 @@ void main() {
 
       await expectLater(
         () => client.get<Uint8List>(Uri.parse('https://x.test')),
-        throwsA(isA<HttpResponseError>()),
+        throwsA(isA<HttpStatusError>()),
       );
       client.dispose();
     });
@@ -74,7 +74,7 @@ void main() {
 
       await expectLater(
         () => client.get<Uint8List>(Uri.parse('https://x.test')),
-        throwsA(isA<HttpResponseError>()),
+        throwsA(isA<HttpStatusError>()),
       );
       // Each transport send triggers the error path exactly once.
       expect(counter.onErrorCount, transport.callCount);
@@ -164,7 +164,8 @@ void main() {
 
       await client.get<Uint8List>(
         Uri.parse('https://x.test/path'),
-        options: const RequestOptions(queryParameters: {'a': '1', 'b': '2'}),
+        options:
+            RequestOptions(queryParameters: QueryParams({'a': '1', 'b': '2'})),
       );
 
       expect(
@@ -228,12 +229,45 @@ void main() {
 
       await expectLater(
         () => client.get<Uint8List>(Uri.parse('https://x.test')),
-        throwsA(isA<HttpResponseError>()),
+        throwsA(isA<HttpStatusError>()),
       );
       // Initial attempt + one auth retry = 2 transport calls, then it stops.
       expect(transport.callCount, 2);
       // Refresh is bounded (proves the loop terminates).
       expect(refreshCount, lessThanOrEqualTo(2));
+      client.dispose();
+    });
+  });
+
+  group('GoHttpClient buildRequest/send', () {
+    test('buildRequest merges default headers and baseUrl', () {
+      final client = GoHttpClient(
+        transport: FakeTransport([ok(200)]),
+        baseUrl: 'https://api.test/v1/',
+        defaultHeaders: {'x-default': '1'},
+      );
+      final req = client.buildRequest(
+        Request(method: HttpMethod.get, uri: Uri.parse('users')),
+      );
+      expect(req.uri.toString(), 'https://api.test/v1/users');
+      expect(req.headers['x-default'], '1');
+      client.dispose();
+    });
+
+    test('send dispatches a mutated prepared request without re-merging',
+        () async {
+      final transport = FakeTransport([
+        ok(200, Uint8List.fromList([9])),
+      ]);
+      final client = GoHttpClient(transport: transport);
+      final prepared = client.buildRequest(
+        Request(method: HttpMethod.get, uri: Uri.parse('https://x.test')),
+      );
+      // Escape hatch: mutate after build, send directly.
+      prepared.headers.add('x-extra', '1');
+      final res = await client.send<Uint8List>(prepared);
+      expect(res.statusCode, 200);
+      expect(transport.sent.single.headers['x-extra'], '1');
       client.dispose();
     });
   });

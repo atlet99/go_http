@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-07-13
+
+### Added
+- Public `Headers` collection: case-insensitive, multi-value (`Set-Cookie`, `Vary`, `Link`), `getAll`/`multiItems`, sensitive-header masking in `toString`.
+- `UseClientDefault` sentinel for three-state `timeout`/`followRedirects` (`useClientDefault` → client default, `null` → disable, value → override).
+- `buildRequest()` / `send()` / `request()` split — `buildRequest` is the merge boundary; `send` dispatches a prepared `Request` without re-merging (escape hatch: `client.send(client.buildRequest(req))`).
+- `baseUrl` option on `GoHttpClient` (relative request URIs resolve against it).
+- Structured exception hierarchy: `HttpError` → `RequestError` → `TransportError` (`TimeoutError`/`NetworkError`/`ProtocolError`/`ProxyError`/`UnsupportedProtocol`) → typed leaves (`ConnectTimeoutError`, `ReadTimeoutError`, `WriteTimeoutError`, `ConnectError`, …); `HttpStatusError` deliberately does **not** extend `RequestError` so `catch (RequestError)` never swallows a 4xx/5xx.
+- Event hooks: `EventHooks` with multicast `request`/`response` callback lists, hot-swappable at runtime via `GoHttpClient.eventHooks`.
+- `Url` (immutable wrapper over `Uri`: lowercased scheme/host, default-port collapsed to `null`, `copyWith`, RFC 3986 `join`, password-masked `toString`) and `QueryParams` (immutable multi-value query: `add`/`set`/`remove`/`merge` return new instances, `getList`, JSON-style bool). `RequestOptions.queryParameters` is now a `QueryParams`.
+- `Multipart` encoder (zero-dependency `multipart/form-data`): `MultipartFile`/`MultipartField`, `render()`/`stream()`/`encodedLength`, random 16-byte boundary, content-type guessing from extension, HTML5 attribute escaping. `GoHttpClient` auto-serializes a `Multipart` request body and sets `Content-Type`.
+- Proxy support: `Proxy` (`http`/`https`/`socks5`/`direct`, parse + masked `toString`), `URLPattern` (wildcard `*` host, `all://` scheme, `specificity`), `ProxyMounts` (most-specific route wins, `null` = explicit direct), and `buildSecurityContext` honoring explicit `verify` / `SSL_CERT_FILE` env. `GoHttpClient` takes `proxyMounts`, `trustEnv`, `verify`; native transport wires `findProxy`, `badCertificateCallback`, and a per-client `SecurityContext`.
+- `Result<T>` (never-throw batch outcome: `Result.ok`/`Result.fail`) and pluggable `ResultSink` SPI with `jsonl`/`csv` factories; CSV output sanitizes formula-injection cells (`=`,`+`,`-`,`@`).
+- Auth SPI: `Auth` strategy (`BasicAuth`, `FunctionAuth`) applied on the request path, plus `DigestAuth` (RFC 2617/7616, MD5/SHA-256, qop, cnonce, nonce-count) driven by the interceptor's 401 `WWW-Authenticate` challenge via the existing retry path. `AuthInterceptor` now takes an `auth` strategy and still supports the legacy Bearer `tokenProvider`/`tokenRefresher` flow.
+- Body encoding: `encodeRequest` dispatch ladder — `json` → `application/json`, `Map` → `application/x-www-form-urlencoded`, raw `String`/bytes/`Multipart` pass through. `post`/`put`/`patch`/`delete` route their `data`/`json` through it.
+- Content decoder registry: `ContentDecoder` SPI + `contentDecoders` map (gzip/deflate always, brotli/zstd optional via `registerBrotli`/`registerZstd`), `decodeContentEncoding` for stacked encodings, deflate-ambiguity fix (zlib → raw fallback). `IoTransport` now always sets `autoUncompress=false` and decodes manually. Default `accept-encoding` narrowed to `gzip`.
+
+### Changed
+- Updated `README.md` — complete rewrite reflecting all current APIs (proxy, auth, decoders, batch, multipart, structured timeouts, headers, mock transport, error hierarchy, etc.)
+- Deleted `example/main.dart` (duplicate of `simple_get.dart`); added `example/post_json.dart` demonstrating `json:` parameter
+- Updated `example/download_progress.dart` to use `onProgress` callback
+- Updated `Makefile`: replaced `example-main` target with `example-post-json`
+
 ## [0.2.0] - 2026-07-12
 
 ### Fixed

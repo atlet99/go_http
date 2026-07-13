@@ -1,5 +1,21 @@
 import 'package:meta/meta.dart';
 
+import 'headers.dart';
+import 'timeout.dart';
+import 'url.dart';
+
+/// Sentinel used on per-request options to mean "fall back to the client
+/// default" — distinct from an explicit `null`, which means "disable".
+///
+/// Mirrors `httpx.USE_CLIENT_DEFAULT`.
+class UseClientDefault {
+  const UseClientDefault._();
+  static const instance = UseClientDefault._();
+}
+
+/// Shared sentinel instance. Compare with `identical(option, useClientDefault)`.
+const useClientDefault = UseClientDefault.instance;
+
 /// HTTP request method
 enum HttpMethod {
   get,
@@ -20,26 +36,33 @@ class RequestOptions {
     this.connectTimeout,
     this.sendTimeout,
     this.receiveTimeout,
-    this.followRedirects,
+    this.timeout = useClientDefault,
+    this.followRedirects = useClientDefault,
     this.maxRedirects,
     this.autoDecompress,
   });
 
   final Map<String, String>? headers;
-  final Map<String, String>? queryParameters;
+  final QueryParams? queryParameters;
   final Duration? connectTimeout;
   final Duration? sendTimeout;
   final Duration? receiveTimeout;
-  final bool? followRedirects;
+
+  /// Structured timeout (takes precedence over the individual
+  /// [connectTimeout]/[sendTimeout]/[receiveTimeout] fields when set).
+  /// Defaults to [useClientDefault] (use the client's timeout).
+  final Object? timeout;
+  final Object? followRedirects;
   final int? maxRedirects;
   final bool? autoDecompress;
 
   RequestOptions copyWith({
     Map<String, String>? headers,
-    Map<String, String>? queryParameters,
+    QueryParams? queryParameters,
     Duration? connectTimeout,
     Duration? sendTimeout,
     Duration? receiveTimeout,
+    Timeout? timeout,
     bool? followRedirects,
     int? maxRedirects,
     bool? autoDecompress,
@@ -50,6 +73,7 @@ class RequestOptions {
       connectTimeout: connectTimeout ?? this.connectTimeout,
       sendTimeout: sendTimeout ?? this.sendTimeout,
       receiveTimeout: receiveTimeout ?? this.receiveTimeout,
+      timeout: timeout ?? this.timeout,
       followRedirects: followRedirects ?? this.followRedirects,
       maxRedirects: maxRedirects ?? this.maxRedirects,
       autoDecompress: autoDecompress ?? this.autoDecompress,
@@ -60,24 +84,24 @@ class RequestOptions {
 /// HTTP request representation
 @immutable
 class Request {
-  const Request({
+  Request({
     required this.method,
     required this.uri,
-    Map<String, String>? headers,
+    Object? headers,
     this.body,
     this.options,
-  }) : headers = headers ?? const {};
+  }) : headers = headers is Headers ? headers : Headers(headers);
 
   final HttpMethod method;
   final Uri uri;
-  final Map<String, String> headers;
+  final Headers headers;
   final Object? body;
   final RequestOptions? options;
 
   Request copyWith({
     HttpMethod? method,
     Uri? uri,
-    Map<String, String>? headers,
+    Object? headers,
     Object? body,
     RequestOptions? options,
   }) {

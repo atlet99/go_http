@@ -3,21 +3,23 @@ import 'dart:typed_data';
 
 import 'package:go_http/go_http.dart';
 
-/// Example of downloading a file with progress tracking
 Future<void> main() async {
-  final client = GoHttpClient();
+  final client = GoHttpClient(
+    timeout: const Timeout(read: Duration(minutes: 5)),
+  );
 
   try {
-    // For now, we'll just download the data
-    // Progress tracking will be added in a future version
     final response = await client.get<Uint8List>(
-      Uri.parse('https://httpbin.org/bytes/1024'),
+      Uri.parse('https://httpbin.org/bytes/65536'),
+      onProgress: (received, total) {
+        final pct = total > 0 ? (received * 100 ~/ total) : received;
+        print('\rDownloaded $received / $total bytes ($pct%)');
+      },
     );
 
     if (response.data != null) {
-      final file = File('downloaded_file.bin');
-      await file.writeAsBytes(response.data!);
-      print('Downloaded ${response.data!.length} bytes to ${file.path}');
+      await File('downloaded.bin').writeAsBytes(response.data!);
+      print('\nSaved ${response.data!.length} bytes to downloaded.bin');
     }
   } catch (e) {
     print('Error: $e');

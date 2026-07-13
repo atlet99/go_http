@@ -29,9 +29,9 @@ format-check: ## Check code formatting without making changes
 check: format-check analyze ## Check formatting and run code analysis
 
 # Examples
-example-main: ## Run example/main.dart
-	@echo "$(GREEN)Running example/main.dart...$(NC)"
-	@dart run example/main.dart
+example-post-json: ## Run example/post_json.dart
+	@echo "$(GREEN)Running example/post_json.dart...$(NC)"
+	@dart run example/post_json.dart
 
 example-simple-get: ## Run example/simple_get.dart
 	@echo "$(GREEN)Running example/simple_get.dart...$(NC)"
@@ -49,7 +49,7 @@ example-download: ## Run example/download_progress.dart
 	@echo "$(GREEN)Running example/download_progress.dart...$(NC)"
 	@dart run example/download_progress.dart
 
-examples: example-main example-simple-get example-cancel example-retry example-download ## Run all examples
+examples: example-simple-get example-post-json example-cancel example-retry example-download ## Run all examples
 
 # Versioning
 check-version: ## Show current version from pubspec.yaml

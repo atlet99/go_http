@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import '../cancel/cancellation_token.dart';
 import '../errors.dart';
+import '../headers.dart';
 import '../request.dart';
 import '../response.dart' as http_response;
 import 'transport.dart';
@@ -71,16 +72,16 @@ class WebTransport implements Transport {
         ..setRequestHeader('accept-encoding', 'gzip');
 
       // Set user headers (skip reserved ones handled by the browser)
-      request.headers.forEach((key, value) {
-        final lower = key.toLowerCase();
+      for (final entry in request.headers.multiItems) {
+        final lower = entry.key.toLowerCase();
         if (lower == 'content-length' || lower == 'accept-encoding') {
-          return;
+          continue;
         }
         try {
-          httpRequest.setRequestHeader(key, value);
+          httpRequest.setRequestHeader(entry.key, entry.value);
           // ignore: empty_catches
         } catch (_) {}
-      });
+      }
 
       // Progress reporting
       StreamSubscription? progressSub;
@@ -150,8 +151,7 @@ class WebTransport implements Transport {
       }
 
       // Parse headers (lowercase keys; keep multi-value set-cookie separate)
-      final responseHeaders = <String, String>{};
-      final setCookies = <String>[];
+      final responseHeaders = Headers();
       final allHeaders = httpRequest.getAllResponseHeaders();
       if (allHeaders.isNotEmpty) {
         for (final line in allHeaders.split('\r\n')) {
@@ -164,15 +164,8 @@ class WebTransport implements Transport {
           }
           final name = line.substring(0, idx).trim().toLowerCase();
           final value = line.substring(idx + 1).trim();
-          if (name == 'set-cookie') {
-            setCookies.add(value);
-          } else {
-            responseHeaders[name] = value;
-          }
+          responseHeaders.add(name, value);
         }
-      }
-      if (setCookies.isNotEmpty) {
-        responseHeaders['set-cookie'] = setCookies.join('\n');
       }
 
       return http_response.Response(
@@ -185,10 +178,9 @@ class WebTransport implements Transport {
     } on HttpError {
       rethrow;
     } on TimeoutException catch (e) {
-      throw TimeoutError(
+      throw ReadTimeoutError(
         request: request,
         timeout: timeout,
-        message: 'Request timeout after ${timeout.inSeconds}s',
         originalError: e,
       );
     } on html.DomException catch (e) {

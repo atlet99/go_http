@@ -52,7 +52,7 @@ void main() {
         );
         return policy.shouldRetry(
           getRequest,
-          HttpResponseError(request: getRequest, response: resp),
+          HttpStatusError(request: getRequest, response: resp),
           0,
         );
       }

@@ -50,8 +50,8 @@ class ConsoleMetricsSink implements MetricsSink {
       return;
     }
     logger(
-      '[metrics] Error: ${error.message} for ${error.request.methodString} '
-      '${error.request.uri}',
+      '[metrics] Error: ${error.message} for ${error.request?.methodString ?? '-'} '
+      '${error.request?.uri ?? ''}',
     );
   }
 }
