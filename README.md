@@ -14,17 +14,20 @@ transport, batch execution, and a powerful interceptor system.
 
 - **Cross-platform** — works identically on Dart CLI, Flutter Mobile/Desktop, and Web
 - **Cancellation** — every request can be cancelled mid-flight with `CancellationToken`
-- **Retry Policy** — smart retry with equal-jitter exponential backoff (idempotent methods only)
+- **Retry Policy** — smart retry with equal-jitter exponential backoff, `Retry-After` header respect
 - **Structured timeouts** — per-phase (`connect`, `read`, `write`, `pool`) via `Timeout`
+- **Upload progress** — `onSendProgress` callback tracks bytes written (streaming and non-streaming bodies)
 - **Interceptors** — request/response/error chain (`LoggingInterceptor`, `AuthInterceptor`)
 - **Auth SPI** — `BasicAuth`, `DigestAuth` (RFC 2617/7616, MD5/SHA-256, qop, cnonce), `FunctionAuth`
 - **Bearer token refresh** — auto-refresh on 401 and single retry
 - **Cookie Store** — RFC-matching jar with `MemoryCookieStore` (domain/path, multi-value `Set-Cookie`)
 - **Headers** — case-insensitive multi-value collection, sensitive-value masking in `toString`
 - **Content-Encoding** — gzip + deflate (with raw fallback), brotli/zstd via `registerBrotli`/`registerZstd`
-- **Body encoding** — `json` → `application/json`, `Map` → `application/x-www-form-urlencoded`
+- **Body encoding** — `json` → `application/json`, `Map` → `application/x-www-form-urlencoded`, `peekLength` helper
 - **Multipart** — `multipart/form-data` encoder (zero dependencies, streaming)
 - **Proxy** — per-URL-pattern mounts (`ProxyMounts`, `URLPattern`), `NO_PROXY` support, `SOCKS5`
+- **Certificate pinning** — per-host SHA-256 fingerprint validation (`PinnedCertificates`)
+- **Top-level API** — `get()`, `post()`, `put()`, `delete()`, `patch()`, `head()`, `options()` — no client boilerplate
 - **URL & QueryParams** — immutable `Url` (httpx-style `copyWith`/`join`), immutable `QueryParams`
 - **Event hooks** — multicast request/response callbacks, hot-swappable at runtime
 - **Batch executor** — bounded-concurrency batch execution with per-result `Result<T>`
@@ -48,7 +51,7 @@ transport, batch execution, and a powerful interceptor system.
 
 ```yaml
 dependencies:
-  go_http: ^0.2.2
+  go_http: ^0.2.3
 ```
 
 ```bash
@@ -57,7 +60,22 @@ dart pub get
 
 ## Quick Start
 
-### GET
+### GET (top-level API)
+
+```dart
+import 'package:go_http/go_http.dart';
+
+void main() async {
+  final response = await get<Uint8List>(
+    Uri.parse('https://httpbin.org/get'),
+  );
+  print('Status: ${response.statusCode}');
+  print('Body: ${response.text}');
+}
+```
+
+No client boilerplate — `GoHttpClient` is cached internally. Available:
+`get`, `post`, `put`, `delete`, `patch`, `head`, `options`.
 
 ```dart
 import 'package:go_http/go_http.dart';
@@ -316,6 +334,33 @@ final client = GoHttpClient(
 );
 ```
 
+### Certificate Pinning
+
+```dart
+final client = GoHttpClient(
+  clientConfig: const ClientConfig(
+    pinnedCertificates: PinnedCertificates(
+      pins: {
+        'api.example.com': ['8Rw90Ej3T3i3C3oG7gQVo0GxGxLxPxQxRxSxTxUxVxWxXxY='],
+      },
+    ),
+  ),
+);
+```
+
+Fingerprints are SHA-256 of the server's DER-encoded X.509 certificate,
+base64-encoded (without the `sha256/` prefix). To compute one:
+
+```dart
+import 'dart:convert' show base64;
+import 'package:crypto/crypto.dart' show sha256;
+final fp = base64.encode(sha256.convert(cert.der).bytes);
+```
+
+> **ponytail:** Pin check runs when system CA rejects the cert. True
+> MITM-with-forged-CA pinning requires a `PinningDialer` wrapping
+> `SecureSocket` directly.
+
 ### Headers
 
 ```dart
@@ -519,10 +564,12 @@ Stub classes ensure compilation on all platforms with zero configuration.
 ## Examples
 
 ```bash
-dart run example/simple_get.dart
+dart run example/simple_get.dart        # GET with client
+dart run example/top_level_get.dart     # GET without client (top-level API)
 dart run example/cancel_request.dart
 dart run example/retry_policy.dart
-dart run example/download_progress.dart
+dart run example/download_progress.dart # download with onProgress
+dart run example/upload_progress.dart   # upload with onSendProgress
 dart run example/post_json.dart
 dart run example/batch_config.dart
 ```

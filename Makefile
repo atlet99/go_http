@@ -1,4 +1,4 @@
-.PHONY: help fix fix-all analyze format format-check check check-all test examples example-main example-simple-get example-cancel example-retry example-download bump-version tag check-version release
+.PHONY: help fix fix-all analyze format format-check check check-all test examples example-main example-simple-get example-cancel example-retry example-download example-upload example-top-level-get bump-version tag check-version release
 
 # Colors for output
 GREEN := \033[0;32m
@@ -65,11 +65,19 @@ example-download: ## Run example/download_progress.dart
 	@echo "$(GREEN)Running example/download_progress.dart...$(NC)"
 	@dart run example/download_progress.dart
 
+example-upload: ## Run example/upload_progress.dart
+	@echo "$(GREEN)Running example/upload_progress.dart...$(NC)"
+	@dart run example/upload_progress.dart
+
+example-top-level-get: ## Run example/top_level_get.dart
+	@echo "$(GREEN)Running example/top_level_get.dart...$(NC)"
+	@dart run example/top_level_get.dart
+
 example-batch-config: ## Run example/batch_config.dart
 	@echo "$(GREEN)Running example/batch_config.dart...$(NC)"
 	@dart run example/batch_config.dart
 
-examples: example-simple-get example-post-json example-cancel example-retry example-download ## Run all examples
+examples: example-simple-get example-post-json example-cancel example-retry example-download example-upload example-top-level-get ## Run all examples
 
 # Versioning
 check-version: ## Show current version from pubspec.yaml
