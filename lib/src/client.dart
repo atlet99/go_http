@@ -63,7 +63,7 @@ class GoHttpClient {
     bool trustEnv = true,
     Object? verify,
     Map<String, String> defaultHeaders = const {
-      'accept-encoding': 'gzip',
+      'accept-encoding': 'gzip, deflate, br',
     },
     MetricsSink? metrics,
     EventHooks? eventHooks,

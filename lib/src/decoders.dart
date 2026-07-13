@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:brotli/brotli.dart';
+
 /// Decodes a response body according to its [Content-Encoding].
 List<int> decodeContentEncoding(List<int> body, String? encoding) {
   if (encoding == null || encoding.isEmpty) {
@@ -35,12 +37,13 @@ abstract class ContentDecoder {
 /// Global registry of [ContentDecoder] factories, keyed by encoding name.
 ///
 /// `gzip` and `deflate` are always present (backed by `dart:io`).
-/// `br` and `zstd` are absent by default — register them with
-/// [registerBrotli] / [registerZstd] when the corresponding packages
-/// are available.
+/// `br` is present when `package:brotli` is imported (default in go_http).
+/// `zstd` is absent by default — register it with [registerZstd] when the
+/// corresponding package is available.
 final Map<String, ContentDecoder Function()> contentDecoders = {
   'gzip': () => _GzipDecoder(),
   'deflate': () => _DeflateDecoder(),
+  'br': () => _BrotliDecoder(),
 };
 
 /// Register a brotli decoder factory (e.g. from `package:brotli`).
@@ -76,6 +79,17 @@ class _DeflateDecoder extends ContentDecoder {
       return ZLibCodec(raw: true).decode(data);
     }
   }
+
+  @override
+  List<int> flush() => [];
+}
+
+/// Brotli decoder backed by `package:brotli`.
+class _BrotliDecoder extends ContentDecoder {
+  final _decoder = const BrotliDecoder();
+
+  @override
+  List<int> decode(List<int> data) => _decoder.convert(data);
 
   @override
   List<int> flush() => [];

@@ -64,18 +64,31 @@ void main() {
       expect(decoders.contentDecoders.containsKey('deflate'), isTrue);
     });
 
-    test('br and zstd are absent by default', () {
-      expect(decoders.contentDecoders.containsKey('br'), isFalse);
+    test('br is registered by default', () {
+      expect(decoders.contentDecoders.containsKey('br'), isTrue);
+    });
+
+    test('zstd is absent by default', () {
       expect(decoders.contentDecoders.containsKey('zstd'), isFalse);
     });
 
-    test('registerBrotli adds br decoder', () {
+    late Map<String, decoders.ContentDecoder Function()> saved;
+
+    setUp(() {
+      saved = Map.fromEntries(decoders.contentDecoders.entries);
+    });
+
+    tearDown(() {
+      decoders.contentDecoders
+        ..clear()
+        ..addAll(saved);
+    });
+
+    test('registerBrotli overrides br decoder', () {
       decoders.registerBrotli(() => _IdentityDecoder());
       expect(decoders.contentDecoders.containsKey('br'), isTrue);
       final decoder = decoders.contentDecoders['br']!();
       expect(decoder.decode([1, 2, 3]), [1, 2, 3]);
-      // Clean up
-      decoders.contentDecoders.remove('br');
     });
 
     test('registerZstd adds zstd decoder', () {

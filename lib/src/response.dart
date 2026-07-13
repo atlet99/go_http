@@ -149,11 +149,27 @@ class Response<T> {
   static String _decodeWith(Uint8List bytes, String charset) {
     final name = charset.toLowerCase();
     if (name == 'utf-8' || name == 'utf8' || name.isEmpty) {
-      return utf8.decode(bytes, allowMalformed: true);
+      // Strip BOM before decoding
+      final offset = _bomLength(bytes);
+      final slice = offset > 0 ? bytes.sublist(offset) : bytes;
+      return utf8.decode(slice, allowMalformed: true);
     }
     // ponytail: latin1 covers all 256 byte values (safe fallback for odd
     // legacy charsets); full charset support is a follow-up (1A.6).
     return latin1.decode(bytes);
+  }
+
+  /// Returns the byte-length of a leading BOM, or 0.
+  // ponytail: only UTF-8 BOM (3 bytes). UTF-16/32 BOM stripping is a
+  // follow-up when the charset decoder supports those encodings.
+  static int _bomLength(Uint8List bytes) {
+    if (bytes.length >= 3 &&
+        bytes[0] == 0xEF &&
+        bytes[1] == 0xBB &&
+        bytes[2] == 0xBF) {
+      return 3;
+    }
+    return 0;
   }
 
   static String? _parseCharset(String? contentType) {
