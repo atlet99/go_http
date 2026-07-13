@@ -42,6 +42,7 @@ EncodedBody encodeRequest({
         .join('&');
     return EncodedBody(h, body);
   }
-  // content (bytes / string / stream / multipart) → as-is.
-  return EncodedBody(h, content);
+  // content (bytes / string / stream / multipart) → as-is,
+  // or [data] when it was passed as a non-Map raw body.
+  return EncodedBody(h, content ?? data);
 }

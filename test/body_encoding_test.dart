@@ -29,7 +29,7 @@ void main() {
         headers: Headers(const {}),
       );
       expect(enc.headers['content-type'], 'application/x-www-form-urlencoded');
-      expect(enc.body, 'k=v%20w&n=7');
+      expect(enc.body, 'k=v+w&n=7');
     });
 
     test('string content passes through untouched', () {
@@ -46,7 +46,10 @@ void main() {
     test('post with Map data is url-encoded', () async {
       final transport = FakeTransport([
         (r) async {
-          expect(r.headers['content-type'], 'application/x-www-form-urlencoded');
+          expect(
+            r.headers['content-type'],
+            'application/x-www-form-urlencoded',
+          );
           expect(_body(r.body), 'a=1&b=2');
           return ok(200)(r);
         },

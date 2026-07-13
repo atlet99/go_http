@@ -147,7 +147,7 @@ class GoHttpClient {
     ProgressCallback? onProgress,
   }) {
     final enc = encodeRequest(
-      content: data,
+      data: data,
       json: json,
       headers: Headers(options?.headers ?? const {}),
     );
@@ -176,7 +176,7 @@ class GoHttpClient {
     ProgressCallback? onProgress,
   }) {
     final enc = encodeRequest(
-      content: data,
+      data: data,
       json: json,
       headers: Headers(options?.headers ?? const {}),
     );
@@ -205,7 +205,7 @@ class GoHttpClient {
     ProgressCallback? onProgress,
   }) {
     final enc = encodeRequest(
-      content: data,
+      data: data,
       json: json,
       headers: Headers(options?.headers ?? const {}),
     );
@@ -234,7 +234,7 @@ class GoHttpClient {
     ProgressCallback? onProgress,
   }) {
     final enc = encodeRequest(
-      content: data,
+      data: data,
       json: json,
       headers: Headers(options?.headers ?? const {}),
     );
