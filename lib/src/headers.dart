@@ -36,10 +36,12 @@ class Headers {
       if (colon < 1) {
         continue;
       }
-      entries.add(MapEntry(
-        trimmed.substring(0, colon).trim().toLowerCase(),
-        trimmed.substring(colon + 1).trim(),
-      ),);
+      entries.add(
+        MapEntry(
+          trimmed.substring(0, colon).trim().toLowerCase(),
+          trimmed.substring(colon + 1).trim(),
+        ),
+      );
     }
     return Headers.fromEntries(entries);
   }

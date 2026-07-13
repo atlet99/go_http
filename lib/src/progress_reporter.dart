@@ -52,8 +52,7 @@ class ProgressReporter {
   String get summary {
     final pct = total > 0 ? (done / total * 100).toStringAsFixed(1) : '--';
     final remaining = eta;
-    final etaStr =
-        remaining != null ? _formatDuration(remaining) : '--';
+    final etaStr = remaining != null ? _formatDuration(remaining) : '--';
     return '$done/$total ($pct%) — '
         '${rps.toStringAsFixed(1)} rps — '
         'ETA $etaStr';

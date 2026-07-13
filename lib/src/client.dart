@@ -34,11 +34,6 @@ import 'url.dart';
 /// [GoHttpClient] orchestrates interceptors, retry/redirect policies, cookie
 /// storage, timeouts and metrics on top of a pluggable [Transport].
 class GoHttpClient {
-  /// Default configuration preset — explicit constructor defaults as a
-  /// factory, useful for JSON/YAML deserialization and env-merge patterns.
-  static GoHttpClient defaults() =>
-      GoHttpClient(clientConfig: ClientConfig.defaults);
-
   GoHttpClient({
     ClientConfig? clientConfig,
     ExecutorConfig? executorConfig,
@@ -96,8 +91,7 @@ class GoHttpClient {
         _maxRedirects = maxRedirects ?? clientConfig?.maxRedirects ?? 5,
         _autoDecompress =
             autoDecompress ?? clientConfig?.autoDecompress ?? true,
-        _maxAuthRetries =
-            maxAuthRetries ?? clientConfig?.maxAuthRetries ?? 1,
+        _maxAuthRetries = maxAuthRetries ?? clientConfig?.maxAuthRetries ?? 1,
         _defaultHeaders = Headers(
           defaultHeaders ??
               clientConfig?.defaultHeaders ??
@@ -106,6 +100,11 @@ class GoHttpClient {
         _metrics = metrics ?? executorConfig?.metrics,
         _eventHooks = eventHooks ?? executorConfig?.eventHooks,
         _enrichers = executorConfig?.enrichers ?? const [];
+
+  /// Default configuration preset — explicit constructor defaults as a
+  /// factory, useful for JSON/YAML deserialization and env-merge patterns.
+  static GoHttpClient defaults() =>
+      GoHttpClient(clientConfig: ClientConfig.defaults);
 
   final Transport _transport;
   final List<Interceptor> _interceptors;
@@ -649,7 +648,8 @@ class GoHttpClient {
   }
 
   /// Build enrichment data after a response is received.
-  Future<ResponseEnrichment> _buildEnrichment(Request req, Response resp) async {
+  Future<ResponseEnrichment> _buildEnrichment(
+      Request req, Response resp,) async {
     Map<String, dynamic>? extra;
     if (_enrichers.isNotEmpty) {
       extra = {};

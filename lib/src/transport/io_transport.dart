@@ -283,8 +283,7 @@ class IoTransport implements Transport {
           try {
             final decoded = decodeContentEncoding(body, encoding);
             headers.remove('content-encoding');
-            final remoteAddr =
-                ioResponse.connectionInfo?.remoteAddress.address;
+            final remoteAddr = ioResponse.connectionInfo?.remoteAddress.address;
             final tlsInfo = _buildTlsInfo(ioResponse);
             return Response(
               request: request,
@@ -311,8 +310,7 @@ class IoTransport implements Transport {
             }
             // Return raw body as last resort
             headers.remove('content-encoding');
-            final remoteAddr =
-                ioResponse.connectionInfo?.remoteAddress.address;
+            final remoteAddr = ioResponse.connectionInfo?.remoteAddress.address;
             final tlsInfo = _buildTlsInfo(ioResponse);
             return Response(
               request: request,
@@ -380,9 +378,8 @@ class IoTransport implements Transport {
       serverCertificate: cert.pem,
       subject: subject,
       issuer: issuer,
-      fingerprintSha1: cert.sha1
-          .map((b) => b.toRadixString(16).padLeft(2, '0'))
-          .join(':'),
+      fingerprintSha1:
+          cert.sha1.map((b) => b.toRadixString(16).padLeft(2, '0')).join(':'),
       fingerprintSha256: fingerprintSha256,
       isSelfSigned: subject == issuer,
       isWildcard: subject.contains('*.'),
@@ -397,9 +394,7 @@ class IoTransport implements Transport {
   static String? _sha256Fingerprint(String pem) {
     try {
       final lines = pem.split('\n');
-      final b64 = lines
-          .where((l) => !l.startsWith('-----'))
-          .join();
+      final b64 = lines.where((l) => !l.startsWith('-----')).join();
       final der = base64.decode(b64);
       final hash = sha256.convert(der);
       return hash.bytes

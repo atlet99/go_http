@@ -187,7 +187,12 @@ void main() {
     test('text decodes cp1251', () {
       // cp1251 bytes for "Привет"
       final bytes = Uint8List.fromList([
-        0xCF, 0xF0, 0xE8, 0xE2, 0xE5, 0xF2,
+        0xCF,
+        0xF0,
+        0xE8,
+        0xE2,
+        0xE5,
+        0xF2,
       ]);
       final res = responseWith(data: bytes);
       res.encoding = 'cp1251';
@@ -197,7 +202,12 @@ void main() {
     test('text decodes koi8-r', () {
       // KOI8-R bytes for "Привет"
       final bytes = Uint8List.fromList([
-        0xF0, 0xD2, 0xC9, 0xD7, 0xC5, 0xD4,
+        0xF0,
+        0xD2,
+        0xC9,
+        0xD7,
+        0xC5,
+        0xD4,
       ]);
       final res = responseWith(data: bytes);
       res.encoding = 'koi8-r';

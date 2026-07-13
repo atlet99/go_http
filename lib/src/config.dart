@@ -45,6 +45,37 @@ class ClientConfig {
     this.cookieStore,
   });
 
+  /// Creates from a JSON/Map representation.
+  ///
+  /// Timeout fields accept either an int (milliseconds) or a Duration.
+  factory ClientConfig.fromJson(Map<String, dynamic> json) {
+    Duration? dur(String key) {
+      final v = json[key];
+      if (v is Duration) {
+        return v;
+      }
+      if (v is int) {
+        return Duration(milliseconds: v);
+      }
+      return null;
+    }
+
+    return ClientConfig(
+      connectTimeout: dur('connectTimeout') ?? const Duration(seconds: 10),
+      sendTimeout: dur('sendTimeout') ?? const Duration(seconds: 30),
+      receiveTimeout: dur('receiveTimeout') ?? const Duration(seconds: 30),
+      followRedirects: json['followRedirects'] as bool? ?? true,
+      maxRedirects: json['maxRedirects'] as int? ?? 5,
+      autoDecompress: json['autoDecompress'] as bool? ?? true,
+      maxAuthRetries: json['maxAuthRetries'] as int? ?? 1,
+      trustEnv: json['trustEnv'] as bool? ?? true,
+      defaultHeaders: json['defaultHeaders'] is Map
+          ? Map<String, String>.from(json['defaultHeaders'] as Map)
+          : const {'accept-encoding': 'gzip, deflate, br'},
+      verify: json['verify'],
+    );
+  }
+
   final Transport? transport;
   final Timeout? timeout;
   final Duration connectTimeout;
@@ -77,40 +108,10 @@ class ClientConfig {
       errors.add(const ValidationError('maxRedirects', 'must be non-negative'));
     }
     if (maxAuthRetries < 0) {
-      errors.add(const ValidationError('maxAuthRetries', 'must be non-negative'));
+      errors
+          .add(const ValidationError('maxAuthRetries', 'must be non-negative'));
     }
     return errors;
-  }
-
-  /// Creates from a JSON/Map representation.
-  ///
-  /// Timeout fields accept either an int (milliseconds) or a Duration.
-  factory ClientConfig.fromJson(Map<String, dynamic> json) {
-    Duration? dur(String key) {
-      final v = json[key];
-      if (v is Duration) {
-        return v;
-      }
-      if (v is int) {
-        return Duration(milliseconds: v);
-      }
-      return null;
-    }
-
-    return ClientConfig(
-      connectTimeout: dur('connectTimeout') ?? const Duration(seconds: 10),
-      sendTimeout: dur('sendTimeout') ?? const Duration(seconds: 30),
-      receiveTimeout: dur('receiveTimeout') ?? const Duration(seconds: 30),
-      followRedirects: json['followRedirects'] as bool? ?? true,
-      maxRedirects: json['maxRedirects'] as int? ?? 5,
-      autoDecompress: json['autoDecompress'] as bool? ?? true,
-      maxAuthRetries: json['maxAuthRetries'] as int? ?? 1,
-      trustEnv: json['trustEnv'] as bool? ?? true,
-      defaultHeaders: json['defaultHeaders'] is Map
-          ? Map<String, String>.from(json['defaultHeaders'] as Map)
-          : const {'accept-encoding': 'gzip, deflate, br'},
-      verify: json['verify'],
-    );
   }
 
   /// Returns a copy with the given fields replaced.
@@ -196,7 +197,8 @@ class ClientConfig {
 
     final verifyStr = env['GO_HTTP_VERIFY'];
     if (verifyStr != null) {
-      c = c.copyWith(verify: verifyStr == '0' || verifyStr == 'false' ? false : verifyStr);
+      c = c.copyWith(
+          verify: verifyStr == '0' || verifyStr == 'false' ? false : verifyStr,);
     }
 
     return c;

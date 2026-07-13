@@ -62,8 +62,7 @@ abstract class ResultSink {
   factory ResultSink.jsonl(String path) =>
       JsonlSink._safe(path, _claimTemp(path));
 
-  factory ResultSink.csv(String path) =>
-      CsvSink._safe(path, _claimTemp(path));
+  factory ResultSink.csv(String path) => CsvSink._safe(path, _claimTemp(path));
 
   void write(Result result);
 
@@ -89,7 +88,9 @@ File _claimTemp(String targetPath) {
 
 /// Newline-delimited JSON sink.
 class JsonlSink implements ResultSink {
-  JsonlSink(this._sink) : _targetPath = null, _tempPath = null;
+  JsonlSink(this._sink)
+      : _targetPath = null,
+        _tempPath = null;
 
   JsonlSink._safe(String targetPath, File tempFile)
       : _sink = tempFile.openWrite(),

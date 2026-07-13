@@ -25,8 +25,7 @@ class AuthInterceptor extends Interceptor {
   AuthInterceptor({
     this.auth,
     @Deprecated('Use BearerAuth(auth) instead') this.tokenProvider,
-    @Deprecated('Use BearerAuth with onError hook instead')
-    this.tokenRefresher,
+    @Deprecated('Use BearerAuth with onError hook instead') this.tokenRefresher,
     @Deprecated('No longer needed — BearerAuth sets the header')
     this.headerName = 'Authorization',
     @Deprecated('No longer needed — BearerAuth sets the prefix')

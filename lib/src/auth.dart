@@ -50,8 +50,7 @@ class BearerAuth extends Auth {
 
   @override
   Request apply(Request request) => request.copyWith(
-        headers: request.headers.copy()
-          ..['Authorization'] = 'Bearer $token',
+        headers: request.headers.copy()..['Authorization'] = 'Bearer $token',
       );
 }
 

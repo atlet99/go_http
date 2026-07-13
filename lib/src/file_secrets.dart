@@ -66,8 +66,7 @@ class FileSecrets {
     }
     return FunctionAuth((req) {
       return req.copyWith(
-        headers: req.headers.copy()
-          ..[headerName] = '$headerPrefix$token',
+        headers: req.headers.copy()..[headerName] = '$headerPrefix$token',
       );
     });
   }
