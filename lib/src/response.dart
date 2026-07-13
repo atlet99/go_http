@@ -97,7 +97,8 @@ class Response<T> {
 
   /// The effective charset used to decode [text]. Priority:
   /// caller-set [encoding] → [charsetEncoding] → [defaultEncoding] → `utf-8`.
-  String get encoding => _encoding ?? charsetEncoding ?? _resolveDefaultEncoding() ?? 'utf-8';
+  String get encoding =>
+      _encoding ?? charsetEncoding ?? _resolveDefaultEncoding() ?? 'utf-8';
   String? _encoding;
 
   /// Override the charset used by [text].

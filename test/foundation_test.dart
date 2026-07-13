@@ -298,7 +298,8 @@ void main() {
 
     test('numBytesDownloaded can be set', () {
       final res = Response<Uint8List>(
-        request: Request(method: HttpMethod.get, uri: Uri.parse('https://x.test')),
+        request:
+            Request(method: HttpMethod.get, uri: Uri.parse('https://x.test')),
         statusCode: 200,
         data: Uint8List.fromList([1, 2, 3]),
         numBytesDownloaded: 3,
@@ -309,7 +310,9 @@ void main() {
     test('bytes stream yields the body data', () async {
       final res = responseWith(data: Uint8List.fromList([1, 2, 3]));
       final chunks = await res.bytes.toList();
-      expect(chunks, [[1, 2, 3]]);
+      expect(chunks, [
+        [1, 2, 3],
+      ]);
     });
 
     test('defaultEncoding is called and overrides charset', () {
@@ -328,8 +331,7 @@ void main() {
     test('links parses Link header', () {
       final res = responseWith(
         headers: {
-          'Link':
-              '<https://api.example.com/items?page=2>; rel="next", '
+          'Link': '<https://api.example.com/items?page=2>; rel="next", '
               '<https://api.example.com/items?page=0>; rel="prev"',
         },
       );
@@ -346,9 +348,7 @@ void main() {
         utf8.encode('Hello '),
         utf8.encode('World'),
       ]);
-      final chunks = await stream
-          .transform(textStreamDecoder())
-          .toList();
+      final chunks = await stream.transform(textStreamDecoder()).toList();
       expect(chunks.join(), 'Hello World');
     });
 
@@ -359,25 +359,19 @@ void main() {
         priver.sublist(0, mid),
         priver.sublist(mid),
       ]);
-      final chunks = await stream
-          .transform(textStreamDecoder())
-          .toList();
+      final chunks = await stream.transform(textStreamDecoder()).toList();
       expect(chunks.join(), 'Привет');
     });
 
     test('lineStreamDecoder splits by newline', () async {
       final stream = Stream<String>.fromIterable(['a\nb\nc']);
-      final lines = await stream
-          .transform(lineStreamDecoder())
-          .toList();
+      final lines = await stream.transform(lineStreamDecoder()).toList();
       expect(lines, ['a', 'b', 'c']);
     });
 
     test('lineStreamDecoder handles empty line', () async {
       final stream = Stream<String>.fromIterable(['a\n\nb']);
-      final lines = await stream
-          .transform(lineStreamDecoder())
-          .toList();
+      final lines = await stream.transform(lineStreamDecoder()).toList();
       expect(lines, ['a', '', 'b']);
     });
 

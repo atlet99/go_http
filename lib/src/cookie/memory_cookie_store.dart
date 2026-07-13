@@ -14,9 +14,7 @@ class MemoryCookieStore implements CookieStore {
 
   @override
   List<String> getCookies(Uri uri) {
-    final matching = _cookies
-        .where((c) => c.matches(uri))
-        .toList()
+    final matching = _cookies.where((c) => c.matches(uri)).toList()
       ..sort((a, b) => b.path.length.compareTo(a.path.length));
 
     return matching.map((c) => c.toHeaderValue()).toList();
@@ -156,8 +154,18 @@ class MemoryCookieStore implements CookieStore {
       }
 
       const months = {
-        'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-        'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+        'jan': 1,
+        'feb': 2,
+        'mar': 3,
+        'apr': 4,
+        'may': 5,
+        'jun': 6,
+        'jul': 7,
+        'aug': 8,
+        'sep': 9,
+        'oct': 10,
+        'nov': 11,
+        'dec': 12,
       };
 
       final parts = s.split(' ');

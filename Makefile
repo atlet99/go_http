@@ -1,4 +1,4 @@
-.PHONY: help analyze format format-check check examples example-main example-simple-get example-cancel example-retry example-download bump-version tag check-version release
+.PHONY: help fix fix-all analyze format format-check check check-all test examples example-main example-simple-get example-cancel example-retry example-download bump-version tag check-version release
 
 # Colors for output
 GREEN := \033[0;32m
@@ -14,6 +14,16 @@ help: ## Show help message with available commands
 	@echo "$(GREEN)Available commands:$(NC)"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
 
+fix: ## Preview dart fixes (dry-run)
+	@echo "$(GREEN)Running dart fix --dry-run...$(NC)"
+	@dart fix --dry-run
+
+fix-all: ## Apply all dart fixes and format
+	@echo "$(GREEN)Applying dart fixes...$(NC)"
+	@dart fix --apply
+	@echo "$(GREEN)Formatting code...$(NC)"
+	@dart format .
+
 analyze: ## Run dart analyze
 	@echo "$(GREEN)Running dart analyze...$(NC)"
 	@dart analyze
@@ -26,7 +36,13 @@ format-check: ## Check code formatting without making changes
 	@echo "$(GREEN)Checking code formatting...$(NC)"
 	@dart format --set-exit-if-changed .
 
+test: ## Run all tests
+	@echo "$(GREEN)Running tests...$(NC)"
+	@dart test
+
 check: format-check analyze ## Check formatting and run code analysis
+
+check-all: format-check analyze test ## Full pipeline: formatting → analysis → tests
 
 # Examples
 example-post-json: ## Run example/post_json.dart
