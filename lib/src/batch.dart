@@ -1,6 +1,7 @@
 import 'dart:math' show min;
 
 import 'client.dart';
+import 'codec/decoder.dart';
 import 'request.dart';
 import 'result.dart';
 

@@ -53,8 +53,7 @@ class Result<T> {
 /// Pluggable output SPI — one writer owns its [IOSink] (single-writer
 /// file I/O, no shared locks). `write` is called per result; `close` flushes.
 abstract class ResultSink {
-  factory ResultSink.jsonl(String path) =>
-      JsonlSink(File(path).openWrite());
+  factory ResultSink.jsonl(String path) => JsonlSink(File(path).openWrite());
 
   factory ResultSink.csv(String path) => CsvSink(File(path).openWrite());
 

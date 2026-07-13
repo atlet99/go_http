@@ -13,10 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `buildRequest()` / `send()` / `request()` split — `buildRequest` is the merge boundary; `send` dispatches a prepared `Request` without re-merging (escape hatch: `client.send(client.buildRequest(req))`).
 - `baseUrl` option on `GoHttpClient` (relative request URIs resolve against it).
 - Structured exception hierarchy: `HttpError` → `RequestError` → `TransportError` (`TimeoutError`/`NetworkError`/`ProtocolError`/`ProxyError`/`UnsupportedProtocol`) → typed leaves (`ConnectTimeoutError`, `ReadTimeoutError`, `WriteTimeoutError`, `ConnectError`, …); `HttpStatusError` deliberately does **not** extend `RequestError` so `catch (RequestError)` never swallows a 4xx/5xx.
-- `Result<T>` (never-throw batch outcome: `Result.ok`/`Result.fail`) and pluggable `ResultSink` SPI with `jsonl`/`csv` factories; CSV output sanitizes formula-injection cells (`=`,`+`,`-`,`@`).
+- Event hooks: `EventHooks` with multicast `request`/`response` callback lists, hot-swappable at runtime via `GoHttpClient.eventHooks`.
 - `Url` (immutable wrapper over `Uri`: lowercased scheme/host, default-port collapsed to `null`, `copyWith`, RFC 3986 `join`, password-masked `toString`) and `QueryParams` (immutable multi-value query: `add`/`set`/`remove`/`merge` return new instances, `getList`, JSON-style bool). `RequestOptions.queryParameters` is now a `QueryParams`.
 - `Multipart` encoder (zero-dependency `multipart/form-data`): `MultipartFile`/`MultipartField`, `render()`/`stream()`/`encodedLength`, random 16-byte boundary, content-type guessing from extension, HTML5 attribute escaping. `GoHttpClient` auto-serializes a `Multipart` request body and sets `Content-Type`.
 - Proxy support: `Proxy` (`http`/`https`/`socks5`/`direct`, parse + masked `toString`), `URLPattern` (wildcard `*` host, `all://` scheme, `specificity`), `ProxyMounts` (most-specific route wins, `null` = explicit direct), and `buildSecurityContext` honoring explicit `verify` / `SSL_CERT_FILE` env. `GoHttpClient` takes `proxyMounts`, `trustEnv`, `verify`; native transport wires `findProxy`, `badCertificateCallback`, and a per-client `SecurityContext`.
+- `Result<T>` (never-throw batch outcome: `Result.ok`/`Result.fail`) and pluggable `ResultSink` SPI with `jsonl`/`csv` factories; CSV output sanitizes formula-injection cells (`=`,`+`,`-`,`@`).
+- `BatchExecutor` — bounded-concurrency batch runner that returns a `Result` per request (one failure never aborts the batch) with an optional progress callback.
 
 ## [0.2.0] - 2026-07-12
 

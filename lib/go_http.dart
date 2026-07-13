@@ -3,6 +3,7 @@
 /// Built for control, cancellation and consistency.
 library go_http;
 
+export 'src/batch.dart';
 export 'src/cancel/cancellation_source.dart';
 export 'src/cancel/cancellation_token.dart';
 export 'src/client.dart';
@@ -27,7 +28,6 @@ export 'src/proxy.dart';
 export 'src/request.dart';
 export 'src/response.dart';
 export 'src/result.dart';
-export 'src/batch.dart';
 export 'src/status_codes.dart';
 export 'src/timeout.dart';
 export 'src/transport/io_transport_stub.dart'
