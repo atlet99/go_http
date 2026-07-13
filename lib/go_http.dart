@@ -13,6 +13,7 @@ export 'src/client.dart';
 export 'src/codec/bytes_decoder.dart';
 export 'src/codec/decoder.dart';
 export 'src/codec/json_decoder.dart';
+export 'src/codec/text_stream_decoder.dart';
 export 'src/config.dart';
 export 'src/cookie/cookie_store.dart';
 export 'src/cookie/memory_cookie_store.dart';

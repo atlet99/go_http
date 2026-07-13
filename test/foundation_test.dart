@@ -340,6 +340,57 @@ void main() {
     test('links returns empty map without Link header', () {
       expect(responseWith().links, isEmpty);
     });
+
+    test('textStreamDecoder decodes UTF-8 bytes', () async {
+      final stream = Stream<List<int>>.fromIterable([
+        utf8.encode('Hello '),
+        utf8.encode('World'),
+      ]);
+      final chunks = await stream
+          .transform(textStreamDecoder())
+          .toList();
+      expect(chunks.join(), 'Hello World');
+    });
+
+    test('textStreamDecoder handles multi-byte chars across chunks', () async {
+      final priver = utf8.encode('Привет');
+      final mid = priver.length ~/ 2;
+      final stream = Stream<List<int>>.fromIterable([
+        priver.sublist(0, mid),
+        priver.sublist(mid),
+      ]);
+      final chunks = await stream
+          .transform(textStreamDecoder())
+          .toList();
+      expect(chunks.join(), 'Привет');
+    });
+
+    test('lineStreamDecoder splits by newline', () async {
+      final stream = Stream<String>.fromIterable(['a\nb\nc']);
+      final lines = await stream
+          .transform(lineStreamDecoder())
+          .toList();
+      expect(lines, ['a', 'b', 'c']);
+    });
+
+    test('lineStreamDecoder handles empty line', () async {
+      final stream = Stream<String>.fromIterable(['a\n\nb']);
+      final lines = await stream
+          .transform(lineStreamDecoder())
+          .toList();
+      expect(lines, ['a', '', 'b']);
+    });
+
+    test('textStreamDecoder + lineStreamDecoder pipeline', () async {
+      final stream = Stream<List<int>>.fromIterable([
+        utf8.encode('line1\nline2\nline3'),
+      ]);
+      final lines = await stream
+          .transform(textStreamDecoder())
+          .transform(lineStreamDecoder())
+          .toList();
+      expect(lines, ['line1', 'line2', 'line3']);
+    });
   });
 
   group('Headers', () {
