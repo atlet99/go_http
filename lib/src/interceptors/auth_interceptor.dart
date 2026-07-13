@@ -1,3 +1,4 @@
+import '../auth.dart';
 import '../errors.dart';
 import '../request.dart';
 import '../response.dart';
@@ -9,37 +10,52 @@ typedef TokenProvider = Future<String?> Function();
 /// Callback for refreshing authentication token
 typedef TokenRefresher = Future<String?> Function();
 
-/// Interceptor for automatic authentication token management.
+/// Interceptor that applies a (pluggable) [Auth] strategy.
 ///
-/// On the request path it attaches the token from [tokenProvider]. When a `401
-/// Unauthorized` is received, it refreshes the token via [tokenRefresher] and
-/// returns a [RetrySignal]; the client then retries the request (re-running
-/// request interceptors so the fresh token is attached).
+/// - Stateless strategies ([BasicAuth], [FunctionAuth]) are applied on the
+///   request path.
+/// - [DigestAuth] goes out unauthenticated, then on a `401` challenge
+///   the `WWW-Authenticate` header is parsed and the digest response is
+///   attached, signalling a single retry (reuses the client's retry budget).
+/// - The legacy Bearer flow ([tokenProvider]/[tokenRefresher]) still works.
 class AuthInterceptor extends Interceptor {
   AuthInterceptor({
+    this.auth,
     this.tokenProvider,
     this.tokenRefresher,
     this.headerName = 'Authorization',
     this.headerPrefix = 'Bearer ',
   });
 
+  final Auth? auth;
   final TokenProvider? tokenProvider;
   final TokenRefresher? tokenRefresher;
   final String headerName;
   final String headerPrefix;
 
+  String? _pendingDigest;
+
   @override
   Future<Request> onRequest(Request request) async {
-    if (tokenProvider == null) {
-      return request;
+    var req = request;
+    if (auth != null) {
+      req = auth!.apply(req);
     }
-    final token = await tokenProvider!();
-    if (token == null) {
-      return request;
+    if (_pendingDigest != null) {
+      req = req.copyWith(
+        headers: req.headers.copy()..[headerName] = _pendingDigest!,
+      );
+      _pendingDigest = null;
     }
-    final headers = request.headers.copy();
-    headers[headerName] = '$headerPrefix$token';
-    return request.copyWith(headers: headers);
+    if (tokenProvider != null) {
+      final token = await tokenProvider!();
+      if (token != null) {
+        req = req.copyWith(
+          headers: req.headers.copy()..[headerName] = '$headerPrefix$token',
+        );
+      }
+    }
+    return req;
   }
 
   @override
@@ -47,13 +63,22 @@ class AuthInterceptor extends Interceptor {
 
   @override
   Future<Object> onError(HttpError error) async {
-    // Handle 401 by refreshing the token and signalling a retry
-    if (error is HttpStatusError &&
-        error.statusCode == 401 &&
-        tokenRefresher != null) {
-      final newToken = await tokenRefresher!();
-      if (newToken != null) {
-        return const RetrySignal();
+    if (error is HttpStatusError && error.statusCode == 401) {
+      if (auth is DigestAuth) {
+        final challenge = error.response.headers['www-authenticate'];
+        if (challenge != null) {
+          _pendingDigest = (auth as DigestAuth).buildHeader(
+            error.request!,
+            challenge,
+          );
+          return const RetrySignal();
+        }
+      }
+      if (tokenRefresher != null) {
+        final newToken = await tokenRefresher!();
+        if (newToken != null) {
+          return const RetrySignal();
+        }
       }
     }
     return Future.error(error);

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'body_encoding.dart';
 import 'cancel/cancellation_token.dart';
 import 'codec/decoder.dart';
 import 'cookie/cookie_store.dart';
@@ -139,17 +140,23 @@ class GoHttpClient {
   Future<Response<T>> post<T>(
     Uri url, {
     Object? data,
+    Object? json,
     RequestOptions? options,
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
   }) {
+    final enc = encodeRequest(
+      content: data,
+      json: json,
+      headers: Headers(options?.headers ?? const {}),
+    );
     return request<T>(
       Request(
         method: HttpMethod.post,
         uri: url,
-        headers: options?.headers ?? const {},
-        body: data,
+        headers: enc.headers.toMap(),
+        body: enc.body,
         options: options,
       ),
       cancel: cancel,
@@ -162,17 +169,23 @@ class GoHttpClient {
   Future<Response<T>> put<T>(
     Uri url, {
     Object? data,
+    Object? json,
     RequestOptions? options,
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
   }) {
+    final enc = encodeRequest(
+      content: data,
+      json: json,
+      headers: Headers(options?.headers ?? const {}),
+    );
     return request<T>(
       Request(
         method: HttpMethod.put,
         uri: url,
-        headers: options?.headers ?? const {},
-        body: data,
+        headers: enc.headers.toMap(),
+        body: enc.body,
         options: options,
       ),
       cancel: cancel,
@@ -185,17 +198,23 @@ class GoHttpClient {
   Future<Response<T>> delete<T>(
     Uri url, {
     Object? data,
+    Object? json,
     RequestOptions? options,
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
   }) {
+    final enc = encodeRequest(
+      content: data,
+      json: json,
+      headers: Headers(options?.headers ?? const {}),
+    );
     return request<T>(
       Request(
         method: HttpMethod.delete,
         uri: url,
-        headers: options?.headers ?? const {},
-        body: data,
+        headers: enc.headers.toMap(),
+        body: enc.body,
         options: options,
       ),
       cancel: cancel,
@@ -208,17 +227,23 @@ class GoHttpClient {
   Future<Response<T>> patch<T>(
     Uri url, {
     Object? data,
+    Object? json,
     RequestOptions? options,
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
   }) {
+    final enc = encodeRequest(
+      content: data,
+      json: json,
+      headers: Headers(options?.headers ?? const {}),
+    );
     return request<T>(
       Request(
         method: HttpMethod.patch,
         uri: url,
-        headers: options?.headers ?? const {},
-        body: data,
+        headers: enc.headers.toMap(),
+        body: enc.body,
         options: options,
       ),
       cancel: cancel,

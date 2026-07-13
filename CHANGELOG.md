@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Multipart` encoder (zero-dependency `multipart/form-data`): `MultipartFile`/`MultipartField`, `render()`/`stream()`/`encodedLength`, random 16-byte boundary, content-type guessing from extension, HTML5 attribute escaping. `GoHttpClient` auto-serializes a `Multipart` request body and sets `Content-Type`.
 - Proxy support: `Proxy` (`http`/`https`/`socks5`/`direct`, parse + masked `toString`), `URLPattern` (wildcard `*` host, `all://` scheme, `specificity`), `ProxyMounts` (most-specific route wins, `null` = explicit direct), and `buildSecurityContext` honoring explicit `verify` / `SSL_CERT_FILE` env. `GoHttpClient` takes `proxyMounts`, `trustEnv`, `verify`; native transport wires `findProxy`, `badCertificateCallback`, and a per-client `SecurityContext`.
 - `Result<T>` (never-throw batch outcome: `Result.ok`/`Result.fail`) and pluggable `ResultSink` SPI with `jsonl`/`csv` factories; CSV output sanitizes formula-injection cells (`=`,`+`,`-`,`@`).
-- `BatchExecutor` — bounded-concurrency batch runner that returns a `Result` per request (one failure never aborts the batch) with an optional progress callback.
+- Auth SPI: `Auth` strategy (`BasicAuth`, `FunctionAuth`) applied on the request path, plus `DigestAuth` (RFC 2617/7616, MD5/SHA-256, qop, cnonce, nonce-count) driven by the interceptor's 401 `WWW-Authenticate` challenge via the existing retry path. `AuthInterceptor` now takes an `auth` strategy and still supports the legacy Bearer `tokenProvider`/`tokenRefresher` flow.
 
 ## [0.2.0] - 2026-07-12
 
