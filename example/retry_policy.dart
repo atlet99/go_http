@@ -14,7 +14,8 @@ Future<void> main() async {
   );
 
   try {
-    // This will retry on network errors
+    // Default retry policy triggers on network errors, timeouts,
+    // and HTTP 429/503/504 (only for idempotent methods).
     final response = await client.get<Uint8List>(
       Uri.parse('https://httpbin.org/status/503'),
     );
