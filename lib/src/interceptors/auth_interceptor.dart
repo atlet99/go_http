@@ -4,26 +4,32 @@ import '../request.dart';
 import '../response.dart';
 import 'interceptor.dart';
 
-/// Callback for getting authentication token
+/// Callback for getting authentication token.
+///
+/// Use [BearerAuth] with a resolved token instead.
 typedef TokenProvider = Future<String?> Function();
 
-/// Callback for refreshing authentication token
+/// Callback for refreshing authentication token.
+///
+/// Use [BearerAuth] with a [AuthInterceptor]'s retry flow instead.
 typedef TokenRefresher = Future<String?> Function();
 
 /// Interceptor that applies a (pluggable) [Auth] strategy.
 ///
-/// - Stateless strategies ([BasicAuth], [FunctionAuth]) are applied on the
-///   request path.
+/// - Stateless strategies ([BasicAuth], [BearerAuth], [FunctionAuth]) are
+///   applied on the request path.
 /// - [DigestAuth] goes out unauthenticated, then on a `401` challenge
 ///   the `WWW-Authenticate` header is parsed and the digest response is
 ///   attached, signalling a single retry (reuses the client's retry budget).
-/// - The legacy Bearer flow ([tokenProvider]/[tokenRefresher]) still works.
 class AuthInterceptor extends Interceptor {
   AuthInterceptor({
     this.auth,
-    this.tokenProvider,
+    @Deprecated('Use BearerAuth(auth) instead') this.tokenProvider,
+    @Deprecated('Use BearerAuth with onError hook instead')
     this.tokenRefresher,
+    @Deprecated('No longer needed — BearerAuth sets the header')
     this.headerName = 'Authorization',
+    @Deprecated('No longer needed — BearerAuth sets the prefix')
     this.headerPrefix = 'Bearer ',
   });
 
@@ -38,23 +44,28 @@ class AuthInterceptor extends Interceptor {
   @override
   Future<Request> onRequest(Request request) async {
     var req = request;
+
+    // 1. Apply the auth strategy (stateless — Basic, Bearer, etc.)
     if (auth != null) {
       req = auth!.apply(req);
     }
+
+    // 2. Digest retry — attach the computed challenge response
     if (_pendingDigest != null) {
       req = req.copyWith(
         headers: req.headers.copy()..[headerName] = _pendingDigest!,
       );
       _pendingDigest = null;
     }
-    if (tokenProvider != null) {
+
+    // 3. Legacy bearer flow — wraps in BearerAuth internally
+    if (tokenProvider != null && auth == null) {
       final token = await tokenProvider!();
       if (token != null) {
-        req = req.copyWith(
-          headers: req.headers.copy()..[headerName] = '$headerPrefix$token',
-        );
+        req = BearerAuth(token).apply(req);
       }
     }
+
     return req;
   }
 
