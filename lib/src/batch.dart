@@ -21,6 +21,7 @@ class BatchExecutor {
     Decoder<T>? decoder,
     void Function(int done, int total)? onProgress,
     void Function(Result<T>)? onResult,
+    List<ResultCallback>? onResults,
   }) async {
     final total = requests.length;
     final out = <Result<T>>[];
@@ -34,6 +35,9 @@ class BatchExecutor {
       for (final r in batch) {
         out.add(r);
         onResult?.call(r);
+        for (final cb in onResults ?? const []) {
+          cb(r);
+        }
       }
       done += batch.length;
       onProgress?.call(done, total);

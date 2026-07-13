@@ -6,6 +6,9 @@ import 'package:meta/meta.dart';
 import 'request.dart';
 import 'response.dart';
 
+/// Callback invoked per [Result] in batch mode.
+typedef ResultCallback = void Function(Result);
+
 /// Outcome of a single request in a batch — success carries a [Response],
 /// failure carries an error (never thrown). Mirrors httpx/runner `Result`,
 /// where one bad target must not abort 100k good ones.

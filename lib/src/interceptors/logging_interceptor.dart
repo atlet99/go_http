@@ -11,7 +11,7 @@ class LoggingInterceptor extends Interceptor {
     this.logRequest = true,
     this.logResponse = true,
     this.logError = true,
-    this.logger = defaultLog,
+    this.logger = stderrLog,
     List<String>? sensitiveHeaders,
   }) : _sensitiveHeaders = sensitiveHeaders ?? _defaultSensitive;
 
