@@ -95,6 +95,10 @@ class GoHttpClient {
   final MetricsSink? _metrics;
   EventHooks? _eventHooks;
 
+  int _inFlight = 0;
+  bool _isShuttingDown = false;
+  Completer<void>? _shutdownCompleter;
+
   /// Hot-swappable request/response callbacks (see [EventHooks]).
   set eventHooks(EventHooks? hooks) => _eventHooks = hooks;
 
@@ -320,6 +324,31 @@ class GoHttpClient {
   /// Unlike [request], [send] does **not** re-merge client config, so it is
   /// safe to call repeatedly on the same prepared request.
   Future<Response<T>> send<T>(
+    Request req, {
+    CancellationToken? cancel,
+    Decoder<T>? decoder,
+    ProgressCallback? onProgress,
+  }) async {
+    if (_isShuttingDown) {
+      throw ClientShutdownError(request: req);
+    }
+    _inFlight++;
+    try {
+      return await _sendWithRetry<T>(
+        req,
+        cancel: cancel,
+        decoder: decoder,
+        onProgress: onProgress,
+      );
+    } finally {
+      _inFlight--;
+      if (_isShuttingDown && _inFlight == 0) {
+        _shutdownCompleter?.complete();
+      }
+    }
+  }
+
+  Future<Response<T>> _sendWithRetry<T>(
     Request req, {
     CancellationToken? cancel,
     Decoder<T>? decoder,
@@ -598,8 +627,22 @@ class GoHttpClient {
   /// Expose the redirect policy (used by tests / advanced configuration)
   RedirectPolicy? get redirectPolicy => _redirectPolicy;
 
-  /// Dispose resources
+  /// Soft shutdown: stop accepting new requests, wait for in-flight to finish.
+  /// Returns a future that completes once all active requests complete.
+  Future<void> shutdown() async {
+    _isShuttingDown = true;
+    if (_inFlight == 0) {
+      return;
+    }
+    _shutdownCompleter ??= Completer<void>();
+    return _shutdownCompleter!.future;
+  }
+
+  /// Hard dispose: force-close transport and all in-flight connections.
   void dispose() {
+    _isShuttingDown = true;
     _transport.dispose();
+    _shutdownCompleter?.complete();
+    _shutdownCompleter = null;
   }
 }

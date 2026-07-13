@@ -17,6 +17,7 @@ class IoTransport implements Transport {
     HttpClient? httpClient,
     this.maxConnectionsPerHost = 6,
     this.autoDecompress = true,
+    this.tryHttpOnHttpsError = false,
     ProxyMounts? proxyMounts,
     bool trustEnv = true,
     Object? verify,
@@ -31,6 +32,7 @@ class IoTransport implements Transport {
   final HttpClient _httpClient;
   final int maxConnectionsPerHost;
   final bool autoDecompress;
+  final bool tryHttpOnHttpsError;
 
   @override
   Future<Response> send(
@@ -52,15 +54,62 @@ class IoTransport implements Transport {
     final shouldDecompress = autoDecompress ?? this.autoDecompress;
 
     HttpClientRequest ioRequest;
+    final uri = request.uri;
     try {
-      ioRequest = await _httpClient
-          .openUrl(request.methodString, request.uri)
-          .timeout(connect);
+      ioRequest =
+          await _httpClient.openUrl(request.methodString, uri).timeout(connect);
     } on TimeoutException {
-      throw ConnectTimeoutError(
-        request: request,
-        timeout: connect,
-      );
+      if (uri.scheme == 'https' && tryHttpOnHttpsError) {
+        try {
+          ioRequest = await _httpClient
+              .openUrl(request.methodString, uri.replace(scheme: 'http'))
+              .timeout(connect);
+        } catch (_) {
+          throw ConnectTimeoutError(request: request, timeout: connect);
+        }
+      } else {
+        throw ConnectTimeoutError(request: request, timeout: connect);
+      }
+    } on SocketException catch (e) {
+      if (uri.scheme == 'https' && tryHttpOnHttpsError) {
+        try {
+          ioRequest = await _httpClient
+              .openUrl(request.methodString, uri.replace(scheme: 'http'))
+              .timeout(connect);
+        } catch (_) {
+          throw ConnectError(
+            request: request,
+            message: 'Network error: ${e.message}',
+            originalError: e,
+          );
+        }
+      } else {
+        throw ConnectError(
+          request: request,
+          message: 'Network error: ${e.message}',
+          originalError: e,
+        );
+      }
+    } on HttpException catch (e) {
+      if (uri.scheme == 'https' && tryHttpOnHttpsError) {
+        try {
+          ioRequest = await _httpClient
+              .openUrl(request.methodString, uri.replace(scheme: 'http'))
+              .timeout(connect);
+        } catch (_) {
+          throw NetworkError(
+            request: request,
+            message: 'HTTP error: ${e.message}',
+            originalError: e,
+          );
+        }
+      } else {
+        throw NetworkError(
+          request: request,
+          message: 'HTTP error: ${e.message}',
+          originalError: e,
+        );
+      }
     }
 
     // Honor redirect settings per request
@@ -174,7 +223,7 @@ class IoTransport implements Transport {
       // dart:io compression is disabled so we control decoding).
       final decodedBody = shouldDecompress
           ? Uint8List.fromList(
-              decodeContentEncoding(body, headers['content-encoding']),
+              _decodeWithGzipFallback(body, headers['content-encoding']),
             )
           : body;
       if (shouldDecompress) {
@@ -234,6 +283,18 @@ class IoTransport implements Transport {
 
   /// Monotonic microsecond counter for trace timestamps.
   static int _traceUs() => DateTime.now().microsecondsSinceEpoch;
+
+  /// Decode [body] with [encoding], falling back to raw bytes if gzip
+  /// decompression fails (server sent `Content-Encoding: gzip` but the body
+  /// is not actually gzip-compressed — a real-world bug).
+  static List<int> _decodeWithGzipFallback(Uint8List body, String? encoding) {
+    try {
+      return decodeContentEncoding(body, encoding);
+    } on FormatException {
+      // ponytail: gzip-fallback — return raw body instead of error.
+      return body;
+    }
+  }
 
   /// Drain remaining bytes from [iterator] into the void, allowing
   /// keep-alive connection reuse. Errors during drain are silently ignored.

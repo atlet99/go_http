@@ -274,6 +274,18 @@ class RequestNotRead extends StreamError {
   });
 }
 
+/// The client has been shut down (graceful or hard) and does not accept new
+/// requests. Thrown by [send] when [shutdown] or [dispose] was called.
+class ClientShutdownError extends RequestError {
+  ClientShutdownError({
+    required super.request,
+    String? message,
+    super.originalError,
+  }) : super(
+          message: message ?? 'Client is shut down and not accepting requests',
+        );
+}
+
 /// Response body exceeded the maximum number of bytes allowed by
 /// [RequestOptions.maxBytesToRead] or [RequestOptions.maxBytesToSave].
 class MaxBytesReadError extends RequestError {

@@ -10,10 +10,13 @@ class IoTransport implements Transport {
     dynamic httpClient,
     int maxConnectionsPerHost = 6,
     bool autoDecompress = true,
+    this.tryHttpOnHttpsError = false,
     ProxyMounts? proxyMounts,
     bool trustEnv = true,
     Object? verify,
   });
+
+  final bool tryHttpOnHttpsError;
 
   @override
   Future<Response> send(

@@ -11,7 +11,8 @@ void main() {
 
     test('single() retries 5xx and 429', () {
       final policy = RetryPolicy.single();
-      final getReq = Request(method: HttpMethod.get, uri: Uri.parse('https://x.test'));
+      final getReq =
+          Request(method: HttpMethod.get, uri: Uri.parse('https://x.test'));
 
       expect(
         policy.shouldRetry(
@@ -46,9 +47,24 @@ void main() {
 
     test('single() stops after max attempts', () {
       final policy = RetryPolicy.single();
-      final req = Request(method: HttpMethod.get, uri: Uri.parse('https://x.test'));
-      expect(policy.shouldRetry(req, NetworkError(message: 'test', request: req), 4), isTrue);
-      expect(policy.shouldRetry(req, NetworkError(message: 'test', request: req), 5), isFalse);
+      final req =
+          Request(method: HttpMethod.get, uri: Uri.parse('https://x.test'));
+      expect(
+        policy.shouldRetry(
+          req,
+          NetworkError(message: 'test', request: req),
+          4,
+        ),
+        isTrue,
+      );
+      expect(
+        policy.shouldRetry(
+          req,
+          NetworkError(message: 'test', request: req),
+          5,
+        ),
+        isFalse,
+      );
     });
   });
   late Request getRequest;

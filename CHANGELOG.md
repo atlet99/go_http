@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RequestTrace` — per-request phase timestamps (wroteRequest, gotFirstResponseByte, responseDone) populated by `IoTransport`.
 - `RetryPolicy.scanning()` / `.single()` — retry presets for probing vs critical workloads.
 - Idempotency extended: `PUT` and `DELETE` are now retried by default (matching `httpx`/`retryablehttp`).
+- Gzip-fallback: `IoTransport` returns raw body instead of crashing when a server sends `Content-Encoding: gzip` on an uncompressed body.
+- Auto-scheme fallback: `IoTransport.tryHttpOnHttpsError` (default `false`) retries a failed HTTPS connection once with HTTP.
+- Graceful two-step shutdown: `GoHttpClient.shutdown()` (soft — stops new requests, waits for in-flight) and `dispose()` (hard — closes transport immediately). `ClientShutdownError` thrown on new requests after shutdown.
 
 ## [0.2.1] - 2026-07-13
 
