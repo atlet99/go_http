@@ -55,14 +55,19 @@ class IoTransport implements Transport {
 
     HttpClientRequest ioRequest;
     final uri = request.uri;
+    final connAddr = request.options?.dialAddress;
+    final connUri = connAddr != null
+        ? uri.replace(host: connAddr.host, port: connAddr.port)
+        : uri;
     try {
-      ioRequest =
-          await _httpClient.openUrl(request.methodString, uri).timeout(connect);
+      ioRequest = await _httpClient
+          .openUrl(request.methodString, connUri)
+          .timeout(connect);
     } on TimeoutException {
-      if (uri.scheme == 'https' && tryHttpOnHttpsError) {
+      if (connUri.scheme == 'https' && tryHttpOnHttpsError) {
         try {
           ioRequest = await _httpClient
-              .openUrl(request.methodString, uri.replace(scheme: 'http'))
+              .openUrl(request.methodString, connUri.replace(scheme: 'http'))
               .timeout(connect);
         } catch (_) {
           throw ConnectTimeoutError(request: request, timeout: connect);
@@ -71,10 +76,10 @@ class IoTransport implements Transport {
         throw ConnectTimeoutError(request: request, timeout: connect);
       }
     } on SocketException catch (e) {
-      if (uri.scheme == 'https' && tryHttpOnHttpsError) {
+      if (connUri.scheme == 'https' && tryHttpOnHttpsError) {
         try {
           ioRequest = await _httpClient
-              .openUrl(request.methodString, uri.replace(scheme: 'http'))
+              .openUrl(request.methodString, connUri.replace(scheme: 'http'))
               .timeout(connect);
         } catch (_) {
           throw ConnectError(
@@ -91,10 +96,10 @@ class IoTransport implements Transport {
         );
       }
     } on HttpException catch (e) {
-      if (uri.scheme == 'https' && tryHttpOnHttpsError) {
+      if (connUri.scheme == 'https' && tryHttpOnHttpsError) {
         try {
           ioRequest = await _httpClient
-              .openUrl(request.methodString, uri.replace(scheme: 'http'))
+              .openUrl(request.methodString, connUri.replace(scheme: 'http'))
               .timeout(connect);
         } catch (_) {
           throw NetworkError(
@@ -125,6 +130,16 @@ class IoTransport implements Transport {
     // Set headers
     for (final entry in request.headers.multiItems) {
       ioRequest.headers.set(entry.key, entry.value);
+    }
+
+    // If dialAddress was used, restore the original Host header so the
+    // server sees the logical request target, not the connection address.
+    if (connAddr != null) {
+      final defaultPort = uri.scheme == 'https' ? 443 : 80;
+      final host = uri.port > 0 && uri.port != defaultPort
+          ? '${uri.host}:${uri.port}'
+          : uri.host;
+      ioRequest.headers.set('host', host);
     }
 
     // Set body if present
@@ -230,12 +245,15 @@ class IoTransport implements Transport {
         headers.remove('content-encoding');
       }
 
+      final remoteAddr = ioResponse.connectionInfo?.remoteAddress.address;
+
       return Response(
         request: request,
         statusCode: ioResponse.statusCode,
         headers: headers,
         data: decodedBody,
         statusMessage: ioResponse.reasonPhrase,
+        remoteAddress: remoteAddr,
       );
     } on HttpError {
       rethrow;

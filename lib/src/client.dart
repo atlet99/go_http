@@ -621,7 +621,10 @@ class GoHttpClient {
   /// Build enrichment data after a response is received.
   /// ponytail: minimal — only transport-independent fields.
   ResponseEnrichment _buildEnrichment(Request req, Response resp) {
-    return ResponseEnrichment(trace: req.trace);
+    return ResponseEnrichment(
+      trace: req.trace,
+      remoteAddress: resp.remoteAddress,
+    );
   }
 
   /// Expose the redirect policy (used by tests / advanced configuration)

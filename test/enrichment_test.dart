@@ -52,5 +52,23 @@ void main() {
       expect(res.enrichment?.timing, isNull);
       client.dispose();
     });
+
+    test('remoteAddress is null by default', () async {
+      final transport = FakeTransport([ok(200)]);
+      final client = GoHttpClient(transport: transport);
+      final res = await client.get(Uri.parse('https://x.test'));
+      expect(res.enrichment?.remoteAddress, isNull);
+      client.dispose();
+    });
+
+    test('remoteAddress flows from transport to enrichment', () async {
+      final transport = FakeTransport([
+        okWithAddr('10.0.0.1'),
+      ]);
+      final client = GoHttpClient(transport: transport);
+      final res = await client.get(Uri.parse('https://x.test'));
+      expect(res.enrichment?.remoteAddress, '10.0.0.1');
+      client.dispose();
+    });
   });
 }

@@ -376,4 +376,35 @@ void main() {
       });
     });
   });
+
+  group('GoHttpClient dialAddress', () {
+    test('passed through options to the transport', () async {
+      final transport = FakeTransport([ok(200)]);
+      final client = GoHttpClient(transport: transport);
+      final addr = Uri.parse('https://192.168.1.1:8443');
+
+      await client.get<Uint8List>(
+        Uri.parse('https://api.example.com/data'),
+        options: RequestOptions(dialAddress: addr),
+      );
+
+      expect(transport.sent.single.uri.host, 'api.example.com');
+      expect(transport.sent.single.options?.dialAddress, addr);
+      client.dispose();
+    });
+  });
+
+  group('RequestOptions dialAddress', () {
+    test('is null by default', () {
+      const opts = RequestOptions();
+      expect(opts.dialAddress, isNull);
+    });
+
+    test('survives copyWith', () {
+      final addr = Uri.parse('https://10.0.0.1:9090');
+      const opts = RequestOptions();
+      final copy = opts.copyWith(dialAddress: addr);
+      expect(copy.dialAddress, addr);
+    });
+  });
 }

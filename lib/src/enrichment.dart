@@ -57,6 +57,7 @@ class ResponseEnrichment {
     this.timing,
     this.tlsInfo,
     this.trace,
+    this.remoteAddress,
   });
 
   final ResponseTiming? timing;
@@ -64,4 +65,8 @@ class ResponseEnrichment {
 
   /// Raw phase timestamps populated by the transport (microsecond counters).
   final RequestTrace? trace;
+
+  /// The IP address of the remote server that handled the request.
+  /// Populated by the transport when available.
+  final String? remoteAddress;
 }

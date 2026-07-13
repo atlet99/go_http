@@ -44,6 +44,7 @@ class RequestOptions {
     this.delay,
     this.maxBytesToRead,
     this.maxBytesToSave,
+    this.dialAddress,
   });
 
   final Map<String, String>? headers;
@@ -73,6 +74,15 @@ class RequestOptions {
   /// ponytail: future versions may spill to a temp file instead of throwing.
   final int? maxBytesToSave;
 
+  /// Override the IP/host:port used for the TCP connection, while keeping the
+  /// original [Request.uri] for the `Host` header and TLS SNI. Useful for
+  /// vhost-probing, pinned-IP testing, or connecting via a specific IP without
+  /// changing the logical request target.
+  /// ponytail: dart:io HttpClient does not support custom Dialer integration,
+  /// so this works by rewriting the connection URI and restoring the Host
+  /// header. TLS SNI still uses the original hostname (dart:io handles this).
+  final Uri? dialAddress;
+
   RequestOptions copyWith({
     Map<String, String>? headers,
     QueryParams? queryParameters,
@@ -86,6 +96,7 @@ class RequestOptions {
     Duration? delay,
     int? maxBytesToRead,
     int? maxBytesToSave,
+    Uri? dialAddress,
   }) {
     return RequestOptions(
       headers: headers ?? this.headers,
@@ -100,6 +111,7 @@ class RequestOptions {
       delay: delay ?? this.delay,
       maxBytesToRead: maxBytesToRead ?? this.maxBytesToRead,
       maxBytesToSave: maxBytesToSave ?? this.maxBytesToSave,
+      dialAddress: dialAddress ?? this.dialAddress,
     );
   }
 }

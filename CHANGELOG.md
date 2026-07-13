@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Gzip-fallback: `IoTransport` returns raw body instead of crashing when a server sends `Content-Encoding: gzip` on an uncompressed body.
 - Auto-scheme fallback: `IoTransport.tryHttpOnHttpsError` (default `false`) retries a failed HTTPS connection once with HTTP.
 - Graceful two-step shutdown: `GoHttpClient.shutdown()` (soft — stops new requests, waits for in-flight) and `dispose()` (hard — closes transport immediately). `ClientShutdownError` thrown on new requests after shutdown.
+- `Dialer` abstract class + `SocketDialer` — pluggable socket-level dialer interface (integration with `IoTransport` pending transport rewrite).
+- IP-override: `RequestOptions.dialAddress` — connect to a specific IP:port while keeping the original hostname in the `Host` header.
+- Dialed-IP exposure: `Response.remoteAddress` and `ResponseEnrichment.remoteAddress` — IP address of the remote server that handled the request.
 
 ## [0.2.1] - 2026-07-13
 

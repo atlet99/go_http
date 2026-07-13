@@ -15,6 +15,7 @@ class Response<T> {
     this.data,
     this.statusMessage,
     this.elapsed = Duration.zero,
+    this.remoteAddress,
     this.enrichment,
     List<Response>? history,
   })  : headers = headers is Headers ? headers : Headers(headers),
@@ -31,6 +32,10 @@ class Response<T> {
 
   /// Redirect chain (intermediate responses), earliest first.
   final List<Response> history;
+
+  /// The IP address of the remote server that handled this response.
+  /// Populated by the transport; `null` when unavailable.
+  final String? remoteAddress;
 
   /// Optional enrichment (timing breakdown, TLS info, etc.).
   /// Populated when the transport collects it; `null` otherwise.
@@ -167,6 +172,7 @@ class Response<T> {
     R? data,
     String? statusMessage,
     Duration? elapsed,
+    String? remoteAddress,
     ResponseEnrichment? enrichment,
     List<Response>? history,
   }) {
@@ -177,6 +183,7 @@ class Response<T> {
       data: data ?? (this.data as R?),
       statusMessage: statusMessage ?? this.statusMessage,
       elapsed: elapsed ?? this.elapsed,
+      remoteAddress: remoteAddress ?? this.remoteAddress,
       enrichment: enrichment ?? this.enrichment,
       history: history ?? this.history,
     );
