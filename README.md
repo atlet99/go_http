@@ -556,10 +556,11 @@ try {
 |---|---|---|
 | Dart CLI / Server | `IoTransport` (dart:io) | ✅ Full support |
 | Flutter Mobile/Desktop | `IoTransport` (dart:io) | ✅ Full support |
-| Flutter Web | `WebTransport` (dart:html) | ✅ Full support |
+| Flutter Web / WASM | `WebTransport` (package:web + dart:js_interop) | ✅ Full support |
 
 The correct transport is selected automatically via conditional imports.
 Stub classes ensure compilation on all platforms with zero configuration.
+WASM compilation is supported — `WebTransport` uses `package:web` + `dart:js_interop` instead of `dart:html`.
 
 ## Examples
 

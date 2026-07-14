@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Makefile targets**: `fix` (dart fix —dry-run), `fix-all` (apply fixes + format), `test` (dart test), `check-all` (format → analyze → test).
 
 ### Changed
+- **WASM-ready**: `web_transport.dart` migrated from `dart:html` to `package:web` + `dart:js_interop`. Unblocks compilation to WASM for Flutter Web. `Request` and `Headers` naming conflicts resolved via `hide` in the import.
 - `MemoryCookieStore` rewritten: RFC 6265 Set-Cookie parsing, per-cookie metadata, domain/path/secure filtering, cookie expiry, automatic dedup on re-set, default-path inference. `getCookies()` returns all matching cookies sorted by path specificity.
 
 ### Tests

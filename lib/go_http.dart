@@ -56,5 +56,5 @@ export 'src/transport/io_transport_stub.dart'
 export 'src/transport/mock_transport.dart';
 export 'src/transport/transport.dart';
 export 'src/transport/web_transport_stub.dart'
-    if (dart.library.html) 'src/transport/web_transport.dart';
+    if (dart.library.js_interop) 'src/transport/web_transport.dart';
 export 'src/url.dart';
