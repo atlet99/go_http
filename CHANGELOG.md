@@ -13,12 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cross-origin redirect header stripping**: `_buildRedirectRequest` now strips `Authorization`, `Cookie`, and `Proxy-Authorization` headers when redirecting to a different origin (RFC 7235 §7.1, RFC 6265 §8.5).
 - **SSE parser** (`lib/src/sse/sse_parser.dart`, `lib/src/sse/sse_event.dart`): `SSEParser` `StreamTransformer<String, SSEEvent>` — parses Server-Sent Events per the HTML Living Standard §9.2. Handles chunked input, CRLF/CR/LF line endings, multi-line `data:`, comments, `event:`, `id:`, `retry:` fields, flush on stream close.
 - **HTTP trailer headers** (`lib/src/chunked_decoder.dart`): `ChunkedDecoder` `StreamTransformer<List<int>, ChunkedEvent>` — decodes HTTP/1.1 chunked transfer encoding and extracts trailer headers (RFC 7230 §4.1). Emits `ChunkedPart` (body chunks) + `ChunkedComplete` (trailers). `Response.trailers` field for explicit trailer access.
+- **`parseJsonInIsolate`** (`lib/src/json_helpers.dart`): decodes JSON in a background isolate via `Isolate.run()` to avoid blocking the event loop on large payloads (10 MB+).
+- **`NdjsonParser`** (`lib/src/json_helpers.dart`): `StreamTransformer<String, dynamic>` — parses NDJSON (newline-delimited JSON) streams. Skips blank lines and `//` comments.
 
 ### Tests
 - Added `DelegatingTransport` + `RateLimitTransport` tests (7 tests): delegation, dispose cascade, inner swap, rate-limit blocking, per-host isolation.
 - Added cross-origin redirect tests (3 tests): strips Authorization on cross-origin, keeps on same-origin, strips Cookie.
 - Added SSE parser tests (18 tests): simple data, event type, id, retry, multi-line data, leading space stripping, comments, multiple events, CRLF/CR endings, chunked input, empty input, flush-on-close, no-data events, unknown fields, retry edge cases.
 - Added HTTP chunked decoder tests (12 tests): single/multiple chunks, trailers, chunk extensions, empty body, chunked input in pieces, trailer-only response, large hex sizes, Response trailers field.
+- Added JSON helpers tests (11 tests): parseJsonInIsolate (map, list, nested, null, invalid), NdjsonParser (multiple lines, blank lines, comments, primitives, chunked input, empty input).
 
 ## [0.2.3] - 2026-07-13
 
