@@ -755,8 +755,24 @@ class GoHttpClient {
       return null;
     }
     final redirectUri = originalRequest.uri.resolve(location);
-    return originalRequest.copyWith(uri: redirectUri, body: null);
+    var next = originalRequest.copyWith(uri: redirectUri, body: null);
+
+    // Strip sensitive headers on cross-origin redirect (RFC 7235 §7.1,
+    // RFC 6265 §8.5). Without this, Authorization and Cookie headers would
+    // leak to a different origin.
+    if (_isCrossOrigin(originalRequest.uri, redirectUri)) {
+      final stripped = next.headers.copy();
+      stripped.remove('authorization');
+      stripped.remove('cookie');
+      stripped.remove('proxy-authorization');
+      next = next.copyWith(headers: stripped);
+    }
+
+    return next;
   }
+
+  /// Whether two URIs have different origins (scheme + host + port).
+  bool _isCrossOrigin(Uri a, Uri b) => a.origin != b.origin;
 
   /// Parse a `Retry-After` header (RFC 9110 §10.2.3).
   /// ponytail: only supports seconds-integer; HTTP-date parsing deferred.
