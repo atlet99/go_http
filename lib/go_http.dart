@@ -50,6 +50,8 @@ export 'src/request_trace.dart';
 export 'src/resizeable_semaphore.dart';
 export 'src/response.dart';
 export 'src/result.dart';
+export 'src/sse/sse_event.dart';
+export 'src/sse/sse_parser.dart';
 export 'src/status_codes.dart';
 export 'src/timeout.dart';
 export 'src/transport/delegating_transport.dart';
