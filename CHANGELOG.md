@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-07-14
+
+### Added
+- **`DelegatingTransport`** (`lib/src/transport/delegating_transport.dart`): abstract base class for composing transport chains — wraps an inner `Transport`, delegates `send`/`dispose`, mutable `inner` field for swapping at runtime.
+- **`RateLimitTransport`** (`lib/src/transport/rate_limit_transport.dart`): `DelegatingTransport` that rate-limits requests via a `RateLimitPolicy` (global or per-host token-bucket).
+- **Cross-origin redirect header stripping**: `_buildRedirectRequest` now strips `Authorization`, `Cookie`, and `Proxy-Authorization` headers when redirecting to a different origin (RFC 7235 §7.1, RFC 6265 §8.5).
+- **SSE parser** (`lib/src/sse/sse_parser.dart`, `lib/src/sse/sse_event.dart`): `SSEParser` `StreamTransformer<String, SSEEvent>` — parses Server-Sent Events per the HTML Living Standard §9.2. Handles chunked input, CRLF/CR/LF line endings, multi-line `data:`, comments, `event:`, `id:`, `retry:` fields, flush on stream close.
+- **HTTP trailer headers** (`lib/src/chunked_decoder.dart`): `ChunkedDecoder` `StreamTransformer<List<int>, ChunkedEvent>` — decodes HTTP/1.1 chunked transfer encoding and extracts trailer headers (RFC 7230 §4.1). Emits `ChunkedPart` (body chunks) + `ChunkedComplete` (trailers). `Response.trailers` field for explicit trailer access.
+- **`parseJsonInIsolate`** (`lib/src/json_helpers.dart`): decodes JSON in a background isolate via `Isolate.run()` to avoid blocking the event loop on large payloads (10 MB+).
+- **`NdjsonParser`** (`lib/src/json_helpers.dart`): `StreamTransformer<String, dynamic>` — parses NDJSON (newline-delimited JSON) streams. Skips blank lines and `//` comments.
+- **`sealed ApiResponse<T>`** (`lib/src/api_response.dart`): type-safe result type with `ApiSuccess<T>`, `ApiError<T>`, `ApiNetworkError<T>` — enables exhaustive `switch` without `default`. Coexists with the exception hierarchy.
+- **`GoHttpClient.requestResult<T>()`**: returns `ApiResponse<T>` instead of throwing. Catches `HttpStatusError` → `ApiError`, `RequestError` → `ApiNetworkError`.
+- **DNS-over-HTTPS resolver** (`lib/src/doh_resolver.dart`): `DohDnsResolver implements DnsResolver` — sends DNS queries as JSON over HTTPS to Google DNS / Cloudflare. Composes with `CachedDnsResolver` for TTL caching. A/AAAA record selection.
+
+### Tests
+- Added `DelegatingTransport` + `RateLimitTransport` tests (7 tests): delegation, dispose cascade, inner swap, rate-limit blocking, per-host isolation.
+- Added cross-origin redirect tests (3 tests): strips Authorization on cross-origin, keeps on same-origin, strips Cookie.
+- Added SSE parser tests (18 tests): simple data, event type, id, retry, multi-line data, leading space stripping, comments, multiple events, CRLF/CR endings, chunked input, empty input, flush-on-close, no-data events, unknown fields, retry edge cases.
+- Added HTTP chunked decoder tests (12 tests): single/multiple chunks, trailers, chunk extensions, empty body, chunked input in pieces, trailer-only response, large hex sizes, Response trailers field.
+- Added JSON helpers tests (11 tests): parseJsonInIsolate (map, list, nested, null, invalid), NdjsonParser (multiple lines, blank lines, comments, primitives, chunked input, empty input).
+- Added `ApiResponse` tests (8 tests): sealed hierarchy (success/error/network), `requestResult` (2xx, 4xx, 5xx, transport failure), exhaustive switch.
+- Added DoH resolver tests (7 tests): A record parsing, A/AAAA preference, fallback to AAAA, NXDOMAIN, empty answers, multiple records, default server.
+
 ## [0.2.3] - 2026-07-13
 
 ### Added
@@ -22,17 +45,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`peekLength` helper** (`lib/src/body_encoding.dart`): returns byte length for common body types without materialising the entire body — `null`→0, `String`→UTF-8 bytes, `List<int>`→list length, `Stream`→`null`.
 - **`poolTimeout` in `Limits`**: new field (default 10s) for the maximum time to wait for a connection from the pool. Wired into `copyWith`, `toString`, and `fromJson`.
 - **Per-host certificate pinning** (`lib/src/pinning.dart`): `PinnedCertificates` config class — `Map<String, List<String>>` mapping hostnames to base64-encoded SHA-256 fingerprints. Wired into `ClientConfig` and `IoTransport._buildClient` via `badCertificateCallback`.
+- **`HappyEyeballDialer`** (`lib/src/dialer.dart`): RFC 8305 dual-stack TCP dialer — resolves both IPv6 and IPv4 addresses, starts IPv6 immediately with a 300ms head start before racing IPv4, first successful connection wins and losers are destroyed.
+- **HSTS cache** (`lib/src/hsts_cache.dart`): `HstsPolicy`, `HstsCache`, `MemoryHstsCache` — RFC 6797 Strict-Transport-Security. Parses `max-age`/`includeSubDomains`/`preload` from response headers, stores per-host policies with expiry, walks subdomain chains for `includeSubDomains` matches.
 - **Makefile targets**: `fix` (dart fix —dry-run), `fix-all` (apply fixes + format), `test` (dart test), `check-all` (format → analyze → test).
-- **`HappyEyeballDialer`** (`lib/src/dialer.dart`): RFC 8305 dual-stack TCP dialer — resolves both IPv6 and IPv4 addresses, starts IPv6 immediately with a 300ms head start before racing IPv4, first successful connection wins and losers are destroyed. Self-contained implementation using `InternetAddress.lookup` directly.
 
 ### Changed
 - **WASM-ready**: `web_transport.dart` migrated from `dart:html` to `package:web` + `dart:js_interop`. Unblocks compilation to WASM for Flutter Web. `Request` and `Headers` naming conflicts resolved via `hide` in the import.
 - `MemoryCookieStore` rewritten: RFC 6265 Set-Cookie parsing, per-cookie metadata, domain/path/secure filtering, cookie expiry, automatic dedup on re-set, default-path inference. `getCookies()` returns all matching cookies sorted by path specificity.
+- `README.md` — added Happy Eyeballs section (RFC 8305), HSTS section (RFC 6797), new `example/happy_eyeball.dart`.
 
 ### Tests
 - Added comprehensive test suite: Limits (8 tests), RFC 6265 cookies (16 tests), Request/Response toString (7 tests), text/line stream decoders (5 tests), streaming request body, expanded StatusCode enum.
 - Added tests for `peekLength` (5 tests), `Request.extensions` (2 tests), certificate pinning (`PinnedCertificates` equality/hash), `Retry-After` parsing, `nextRequest`/`elapsed`/`numBytesDownloaded` on Response, and `Limits.poolTimeout`.
 - Added `HappyEyeballDialer` integration tests (3 tests): IPv4 fallback via localhost, DNS resolution failure, connection refused.
+- Added HSTS cache tests (16 tests): policy expiry/equality, `setHsts`/`lookup` (exact, subdomain, preload, max-age=0, HTTP ignore, expired, unknown), `clearExpired`/`clear`, header parsing edge cases, client integration (buildRequest upgrade).
 
 ## [0.2.2] - 2026-07-13
 

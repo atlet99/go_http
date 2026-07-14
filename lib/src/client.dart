@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'api_response.dart';
 import 'body_encoding.dart';
 import 'cancel/cancellation_token.dart';
 import 'codec/decoder.dart';
@@ -11,6 +12,7 @@ import 'enrichment.dart';
 import 'errors.dart';
 import 'event_hooks.dart';
 import 'headers.dart';
+import 'hsts_cache.dart';
 import 'interceptors/interceptor.dart';
 import 'limits.dart';
 import 'metrics/metrics_sink.dart';
@@ -82,6 +84,7 @@ class GoHttpClient {
             DefaultRedirectPolicy(),
         _cookieStore =
             cookieStore ?? clientConfig?.cookieStore ?? MemoryCookieStore(),
+        _hstsCache = clientConfig?.hstsCache,
         _timeout = timeout ?? clientConfig?.timeout,
         _connectTimeout = connectTimeout ??
             clientConfig?.connectTimeout ??
@@ -117,6 +120,7 @@ class GoHttpClient {
   final RetryPolicy? _retryPolicy;
   final RedirectPolicy? _redirectPolicy;
   final CookieStore _cookieStore;
+  final HstsCache? _hstsCache;
   final Timeout? _timeout;
   final Duration _connectTimeout;
   final Duration _sendTimeout;
@@ -373,6 +377,7 @@ class GoHttpClient {
     }
     request = _applyCookies(request);
     request = _applyBaseUrl(request);
+    request = _applyHstsUpgrade(request);
     return request;
   }
 
@@ -473,6 +478,10 @@ class GoHttpClient {
 
         // Store cookies from response
         _cookieStore.setCookies(response);
+
+        // Store HSTS policy (only from HTTPS responses
+        // — MemoryHstsCache.setHsts does the check internally)
+        _hstsCache?.setHsts(response);
 
         // Treat 4xx/5xx as errors (throws into the catch below, where error
         // interceptors run exactly once).
@@ -638,6 +647,44 @@ class GoHttpClient {
         onSendProgress: onSendProgress,
       );
 
+  /// Like [request], but returns an [ApiResponse] instead of throwing.
+  ///
+  /// ```dart
+  /// final result = await client.requestResult<Map>(
+  ///   Request.get(Uri.parse('https://api.example.com/data')),
+  /// );
+  /// switch (result) {
+  ///   case ApiSuccess(:final response):
+  ///     print(response.json());
+  ///   case ApiError(:final error):
+  ///     print('HTTP ${error.statusCode}');
+  ///   case ApiNetworkError(:final error):
+  ///     print('Network: ${error.message}');
+  /// }
+  /// ```
+  Future<ApiResponse<T>> requestResult<T>(
+    Request req, {
+    CancellationToken? cancel,
+    Decoder<T>? decoder,
+    ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
+  }) async {
+    try {
+      final response = await request<T>(
+        req,
+        cancel: cancel,
+        decoder: decoder,
+        onProgress: onProgress,
+        onSendProgress: onSendProgress,
+      );
+      return ApiSuccess<T>(response);
+    } on HttpStatusError catch (e) {
+      return ApiError<T>(e);
+    } on RequestError catch (e) {
+      return ApiNetworkError<T>(e);
+    }
+  }
+
   Timeout? _resolveTimeout(Object? timeout) {
     if (identical(timeout, useClientDefault)) {
       return _timeout;
@@ -696,6 +743,17 @@ class GoHttpClient {
     return request.copyWith(uri: Uri.parse(base).resolveUri(uri));
   }
 
+  Request _applyHstsUpgrade(Request request) {
+    if (_hstsCache == null || request.uri.scheme != 'http') {
+      return request;
+    }
+    final policy = _hstsCache!.lookup(request.uri.host);
+    if (policy == null) {
+      return request;
+    }
+    return request.copyWith(uri: request.uri.replace(scheme: 'https'));
+  }
+
   Request _encodeMultipart(Request request) {
     final mp = request.body as Multipart;
     final headers = request.headers.copy();
@@ -736,8 +794,24 @@ class GoHttpClient {
       return null;
     }
     final redirectUri = originalRequest.uri.resolve(location);
-    return originalRequest.copyWith(uri: redirectUri, body: null);
+    var next = originalRequest.copyWith(uri: redirectUri, body: null);
+
+    // Strip sensitive headers on cross-origin redirect (RFC 7235 §7.1,
+    // RFC 6265 §8.5). Without this, Authorization and Cookie headers would
+    // leak to a different origin.
+    if (_isCrossOrigin(originalRequest.uri, redirectUri)) {
+      final stripped = next.headers.copy();
+      stripped.remove('authorization');
+      stripped.remove('cookie');
+      stripped.remove('proxy-authorization');
+      next = next.copyWith(headers: stripped);
+    }
+
+    return next;
   }
+
+  /// Whether two URIs have different origins (scheme + host + port).
+  bool _isCrossOrigin(Uri a, Uri b) => a.origin != b.origin;
 
   /// Parse a `Retry-After` header (RFC 9110 §10.2.3).
   /// ponytail: only supports seconds-integer; HTTP-date parsing deferred.

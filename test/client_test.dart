@@ -433,6 +433,77 @@ void main() {
       expect(res.nextRequest?.uri.path, '/next');
       client.dispose();
     });
+
+    test('strips Authorization on cross-origin redirect', () async {
+      final transport = FakeTransport([
+        (r) async => Response(
+              request: r,
+              statusCode: 302,
+              headers: {'Location': 'https://other.test/next'},
+              data: Uint8List(0),
+            ),
+      ]);
+      final client = GoHttpClient(
+        transport: transport,
+        followRedirects: false,
+      );
+      final req = Request(
+        uri: Uri.parse('https://x.test'),
+        method: HttpMethod.get,
+        headers: {'Authorization': 'Bearer token123'},
+      );
+      final res = await client.send(req);
+      expect(res.nextRequest, isNotNull);
+      expect(res.nextRequest?.headers['authorization'], isNull);
+      client.dispose();
+    });
+
+    test('keeps Authorization on same-origin redirect', () async {
+      final transport = FakeTransport([
+        (r) async => Response(
+              request: r,
+              statusCode: 302,
+              headers: {'Location': 'https://x.test/next'},
+              data: Uint8List(0),
+            ),
+      ]);
+      final client = GoHttpClient(
+        transport: transport,
+        followRedirects: false,
+      );
+      final req = Request(
+        uri: Uri.parse('https://x.test'),
+        method: HttpMethod.get,
+        headers: {'Authorization': 'Bearer token123'},
+      );
+      final res = await client.send(req);
+      expect(res.nextRequest?.headers['authorization'], 'Bearer token123');
+      client.dispose();
+    });
+
+    test('strips Cookie on cross-origin redirect', () async {
+      final transport = FakeTransport([
+        (r) async => Response(
+              request: r,
+              statusCode: 302,
+              headers: {'Location': 'https://other.test/next'},
+              data: Uint8List(0),
+            ),
+      ]);
+      final client = GoHttpClient(
+        transport: transport,
+        followRedirects: false,
+      );
+      final req = Request(
+        uri: Uri.parse('https://x.test'),
+        method: HttpMethod.get,
+        headers: {'Cookie': 'session=abc'},
+      );
+      final res = await client.send(req);
+      expect(res.nextRequest, isNotNull);
+      expect(res.nextRequest?.headers['cookie'], isNull);
+      client.dispose();
+    });
   });
 
   group('GoHttpClient elapsed', () {

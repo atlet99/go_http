@@ -37,6 +37,7 @@ transport, batch execution, and a powerful interceptor system.
 - **MockTransport** — handler-backed transport for testing
 - **Exception hierarchy** — 30+ typed error classes (`ConnectTimeoutError`, `ReadTimeoutError`, `ProxyError`, `HttpStatusError`, …)
 - **Happy Eyeballs** — RFC 8305 dual-stack TCP `HappyEyeballDialer`, races IPv6→IPv4 with 300ms head start
+- **HSTS** — RFC 6797 `MemoryHstsCache`, auto-upgrades HTTP→HTTPS from `Strict-Transport-Security` headers
 - **Status codes** — `StatusCode` enum with 33 entries and category predicates
 - **Metrics** — timeline events via `MetricsSink` / `ConsoleMetricsSink`
 - **Base URL** — relative request URIs resolved against a client-level `baseUrl`
@@ -402,6 +403,38 @@ final dialer = const HappyEyeballDialer(
 > before the delay expires). Add when per-connection latency stats make the
 > 300ms gap visible. Not integrated into `IoTransport` yet — the `Dialer` SPI
 > awaits a transport rewrite.
+
+### HSTS (HTTP Strict Transport Security)
+
+`MemoryHstsCache` stores `Strict-Transport-Security` policies from HTTPS
+responses and automatically upgrades HTTP requests to HTTPS for covered hosts.
+
+```dart
+final client = GoHttpClient(
+  clientConfig: const ClientConfig(
+    hstsCache: MemoryHstsCache(),
+  ),
+);
+```
+
+When an HTTPS response includes a `Strict-Transport-Security` header:
+
+```
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+```
+
+The policy is stored and `client.buildRequest()` will rewrite
+`http://example.com/page` → `https://example.com/page` for matching hosts
+(including subdomains when `includeSubDomains` is set).
+
+`max-age=0` removes a stored policy. The header is ignored over plain HTTP
+(RFC 6797 §7.2).
+
+```dart
+final url = Uri.parse('http://example.com/data');
+final req = client.buildRequest(Request(method: HttpMethod.get, uri: url));
+print(req.uri.scheme); // "https" — auto-upgraded
+```
 
 ### Headers
 
