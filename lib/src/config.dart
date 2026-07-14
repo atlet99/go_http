@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'cookie/cookie_store.dart';
 import 'enrichment.dart';
 import 'event_hooks.dart';
+import 'hsts_cache.dart';
 import 'interceptors/interceptor.dart';
 import 'limits.dart';
 import 'metrics/metrics_sink.dart';
@@ -46,6 +47,7 @@ class ClientConfig {
     this.trustEnv = true,
     this.defaultHeaders = const {'accept-encoding': 'gzip, deflate, br'},
     this.cookieStore,
+    this.hstsCache,
     this.pinnedCertificates,
     this.minTlsVersion,
     this.maxTlsVersion,
@@ -122,6 +124,13 @@ class ClientConfig {
   final Map<String, String> defaultHeaders;
   final CookieStore? cookieStore;
 
+  /// HSTS (HTTP Strict Transport Security) cache.
+  ///
+  /// When set, `Strict-Transport-Security` headers from HTTPS responses are
+  /// stored and HTTP requests to matching hosts are automatically upgraded to
+  /// HTTPS in `buildRequest`.
+  final HstsCache? hstsCache;
+
   /// Minimum TLS version (e.g. dart:io `TlsVersion.tls1_2`).
   /// Use `Object?` to avoid platform dependency; IoTransport casts the value.
   final Object? minTlsVersion;
@@ -180,6 +189,7 @@ class ClientConfig {
     bool? trustEnv,
     Map<String, String>? defaultHeaders,
     CookieStore? cookieStore,
+    HstsCache? hstsCache,
     PinnedCertificates? pinnedCertificates,
     Object? minTlsVersion,
     Object? maxTlsVersion,
@@ -202,6 +212,7 @@ class ClientConfig {
         trustEnv: trustEnv ?? this.trustEnv,
         defaultHeaders: defaultHeaders ?? this.defaultHeaders,
         cookieStore: cookieStore ?? this.cookieStore,
+        hstsCache: hstsCache ?? this.hstsCache,
         pinnedCertificates: pinnedCertificates ?? this.pinnedCertificates,
         minTlsVersion: minTlsVersion ?? this.minTlsVersion,
         maxTlsVersion: maxTlsVersion ?? this.maxTlsVersion,

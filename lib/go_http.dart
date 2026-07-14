@@ -28,6 +28,7 @@ export 'src/event_hooks.dart';
 export 'src/file_secrets.dart';
 export 'src/filter.dart';
 export 'src/headers.dart';
+export 'src/hsts_cache.dart';
 export 'src/interceptors/auth_interceptor.dart';
 export 'src/interceptors/interceptor.dart';
 export 'src/interceptors/logging_interceptor.dart';

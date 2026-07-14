@@ -11,6 +11,7 @@ import 'enrichment.dart';
 import 'errors.dart';
 import 'event_hooks.dart';
 import 'headers.dart';
+import 'hsts_cache.dart';
 import 'interceptors/interceptor.dart';
 import 'limits.dart';
 import 'metrics/metrics_sink.dart';
@@ -82,6 +83,7 @@ class GoHttpClient {
             DefaultRedirectPolicy(),
         _cookieStore =
             cookieStore ?? clientConfig?.cookieStore ?? MemoryCookieStore(),
+        _hstsCache = clientConfig?.hstsCache,
         _timeout = timeout ?? clientConfig?.timeout,
         _connectTimeout = connectTimeout ??
             clientConfig?.connectTimeout ??
@@ -117,6 +119,7 @@ class GoHttpClient {
   final RetryPolicy? _retryPolicy;
   final RedirectPolicy? _redirectPolicy;
   final CookieStore _cookieStore;
+  final HstsCache? _hstsCache;
   final Timeout? _timeout;
   final Duration _connectTimeout;
   final Duration _sendTimeout;
@@ -373,6 +376,7 @@ class GoHttpClient {
     }
     request = _applyCookies(request);
     request = _applyBaseUrl(request);
+    request = _applyHstsUpgrade(request);
     return request;
   }
 
@@ -473,6 +477,10 @@ class GoHttpClient {
 
         // Store cookies from response
         _cookieStore.setCookies(response);
+
+        // Store HSTS policy (only from HTTPS responses
+        // — MemoryHstsCache.setHsts does the check internally)
+        _hstsCache?.setHsts(response);
 
         // Treat 4xx/5xx as errors (throws into the catch below, where error
         // interceptors run exactly once).
@@ -694,6 +702,17 @@ class GoHttpClient {
       return request;
     }
     return request.copyWith(uri: Uri.parse(base).resolveUri(uri));
+  }
+
+  Request _applyHstsUpgrade(Request request) {
+    if (_hstsCache == null || request.uri.scheme != 'http') {
+      return request;
+    }
+    final policy = _hstsCache!.lookup(request.uri.host);
+    if (policy == null) {
+      return request;
+    }
+    return request.copyWith(uri: request.uri.replace(scheme: 'https'));
   }
 
   Request _encodeMultipart(Request request) {
