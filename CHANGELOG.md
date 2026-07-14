@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`poolTimeout` in `Limits`**: new field (default 10s) for the maximum time to wait for a connection from the pool. Wired into `copyWith`, `toString`, and `fromJson`.
 - **Per-host certificate pinning** (`lib/src/pinning.dart`): `PinnedCertificates` config class — `Map<String, List<String>>` mapping hostnames to base64-encoded SHA-256 fingerprints. Wired into `ClientConfig` and `IoTransport._buildClient` via `badCertificateCallback`.
 - **Makefile targets**: `fix` (dart fix —dry-run), `fix-all` (apply fixes + format), `test` (dart test), `check-all` (format → analyze → test).
+- **`HappyEyeballDialer`** (`lib/src/dialer.dart`): RFC 8305 dual-stack TCP dialer — resolves both IPv6 and IPv4 addresses, starts IPv6 immediately with a 300ms head start before racing IPv4, first successful connection wins and losers are destroyed. Self-contained implementation using `InternetAddress.lookup` directly.
 
 ### Changed
 - **WASM-ready**: `web_transport.dart` migrated from `dart:html` to `package:web` + `dart:js_interop`. Unblocks compilation to WASM for Flutter Web. `Request` and `Headers` naming conflicts resolved via `hide` in the import.
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Tests
 - Added comprehensive test suite: Limits (8 tests), RFC 6265 cookies (16 tests), Request/Response toString (7 tests), text/line stream decoders (5 tests), streaming request body, expanded StatusCode enum.
 - Added tests for `peekLength` (5 tests), `Request.extensions` (2 tests), certificate pinning (`PinnedCertificates` equality/hash), `Retry-After` parsing, `nextRequest`/`elapsed`/`numBytesDownloaded` on Response, and `Limits.poolTimeout`.
+- Added `HappyEyeballDialer` integration tests (3 tests): IPv4 fallback via localhost, DNS resolution failure, connection refused.
 
 ## [0.2.2] - 2026-07-13
 
