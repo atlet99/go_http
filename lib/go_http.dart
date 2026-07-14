@@ -4,6 +4,7 @@
 library go_http;
 
 export 'src/api.dart';
+export 'src/api_response.dart';
 export 'src/auth.dart';
 export 'src/batch.dart';
 export 'src/body_encoding.dart';

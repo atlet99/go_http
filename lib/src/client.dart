@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'api_response.dart';
 import 'body_encoding.dart';
 import 'cancel/cancellation_token.dart';
 import 'codec/decoder.dart';
@@ -645,6 +646,44 @@ class GoHttpClient {
         onProgress: onProgress,
         onSendProgress: onSendProgress,
       );
+
+  /// Like [request], but returns an [ApiResponse] instead of throwing.
+  ///
+  /// ```dart
+  /// final result = await client.requestResult<Map>(
+  ///   Request.get(Uri.parse('https://api.example.com/data')),
+  /// );
+  /// switch (result) {
+  ///   case ApiSuccess(:final response):
+  ///     print(response.json());
+  ///   case ApiError(:final error):
+  ///     print('HTTP ${error.statusCode}');
+  ///   case ApiNetworkError(:final error):
+  ///     print('Network: ${error.message}');
+  /// }
+  /// ```
+  Future<ApiResponse<T>> requestResult<T>(
+    Request req, {
+    CancellationToken? cancel,
+    Decoder<T>? decoder,
+    ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
+  }) async {
+    try {
+      final response = await request<T>(
+        req,
+        cancel: cancel,
+        decoder: decoder,
+        onProgress: onProgress,
+        onSendProgress: onSendProgress,
+      );
+      return ApiSuccess<T>(response);
+    } on HttpStatusError catch (e) {
+      return ApiError<T>(e);
+    } on RequestError catch (e) {
+      return ApiNetworkError<T>(e);
+    }
+  }
 
   Timeout? _resolveTimeout(Object? timeout) {
     if (identical(timeout, useClientDefault)) {

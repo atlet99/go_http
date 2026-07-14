@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HTTP trailer headers** (`lib/src/chunked_decoder.dart`): `ChunkedDecoder` `StreamTransformer<List<int>, ChunkedEvent>` — decodes HTTP/1.1 chunked transfer encoding and extracts trailer headers (RFC 7230 §4.1). Emits `ChunkedPart` (body chunks) + `ChunkedComplete` (trailers). `Response.trailers` field for explicit trailer access.
 - **`parseJsonInIsolate`** (`lib/src/json_helpers.dart`): decodes JSON in a background isolate via `Isolate.run()` to avoid blocking the event loop on large payloads (10 MB+).
 - **`NdjsonParser`** (`lib/src/json_helpers.dart`): `StreamTransformer<String, dynamic>` — parses NDJSON (newline-delimited JSON) streams. Skips blank lines and `//` comments.
+- **`sealed ApiResponse<T>`** (`lib/src/api_response.dart`): type-safe result type with `ApiSuccess<T>`, `ApiError<T>`, `ApiNetworkError<T>` — enables exhaustive `switch` without `default`. Coexists with the exception hierarchy.
+- **`GoHttpClient.requestResult<T>()`**: returns `ApiResponse<T>` instead of throwing. Catches `HttpStatusError` → `ApiError`, `RequestError` → `ApiNetworkError`.
 
 ### Tests
 - Added `DelegatingTransport` + `RateLimitTransport` tests (7 tests): delegation, dispose cascade, inner swap, rate-limit blocking, per-host isolation.
@@ -22,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added SSE parser tests (18 tests): simple data, event type, id, retry, multi-line data, leading space stripping, comments, multiple events, CRLF/CR endings, chunked input, empty input, flush-on-close, no-data events, unknown fields, retry edge cases.
 - Added HTTP chunked decoder tests (12 tests): single/multiple chunks, trailers, chunk extensions, empty body, chunked input in pieces, trailer-only response, large hex sizes, Response trailers field.
 - Added JSON helpers tests (11 tests): parseJsonInIsolate (map, list, nested, null, invalid), NdjsonParser (multiple lines, blank lines, comments, primitives, chunked input, empty input).
+- Added `ApiResponse` tests (8 tests): sealed hierarchy (success/error/network), `requestResult` (2xx, 4xx, 5xx, transport failure), exhaustive switch.
 
 ## [0.2.3] - 2026-07-13
 
