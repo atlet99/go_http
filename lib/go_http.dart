@@ -52,9 +52,11 @@ export 'src/response.dart';
 export 'src/result.dart';
 export 'src/status_codes.dart';
 export 'src/timeout.dart';
+export 'src/transport/delegating_transport.dart';
 export 'src/transport/io_transport_stub.dart'
     if (dart.library.io) 'src/transport/io_transport.dart';
 export 'src/transport/mock_transport.dart';
+export 'src/transport/rate_limit_transport.dart';
 export 'src/transport/transport.dart';
 export 'src/transport/web_transport_stub.dart'
     if (dart.library.js_interop) 'src/transport/web_transport.dart';
