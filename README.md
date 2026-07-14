@@ -36,6 +36,7 @@ transport, batch execution, and a powerful interceptor system.
 - **Response model** — `text`, `json()`, `raiseForStatus()`, charset-aware decoding, `hasRedirectLocation`, `history`
 - **MockTransport** — handler-backed transport for testing
 - **Exception hierarchy** — 30+ typed error classes (`ConnectTimeoutError`, `ReadTimeoutError`, `ProxyError`, `HttpStatusError`, …)
+- **Happy Eyeballs** — RFC 8305 dual-stack TCP `HappyEyeballDialer`, races IPv6→IPv4 with 300ms head start
 - **Status codes** — `StatusCode` enum with 33 entries and category predicates
 - **Metrics** — timeline events via `MetricsSink` / `ConsoleMetricsSink`
 - **Base URL** — relative request URIs resolved against a client-level `baseUrl`
@@ -361,6 +362,47 @@ final fp = base64.encode(sha256.convert(cert.der).bytes);
 > MITM-with-forged-CA pinning requires a `PinningDialer` wrapping
 > `SecureSocket` directly.
 
+### Happy Eyeballs (RFC 8305)
+
+`HappyEyeballDialer` resolves a hostname to all IPv6 and IPv4 addresses,
+then races connections: IPv6 starts immediately (300ms head start), IPv4 begins
+after the delay. The first successful connection wins; losers are destroyed.
+
+```dart
+import 'package:go_http/go_http.dart';
+
+Future<void> main() async {
+  final dialer = const HappyEyeballDialer();
+
+  try {
+    final socket = await dialer.dial(
+      'example.com',
+      80,
+      timeout: const Duration(seconds: 10),
+    );
+    print('Connected to ${socket.remoteAddress.address}');
+    print('Address family: ${socket.remoteAddress.type}');
+    socket.destroy();
+  } catch (e) {
+    print('Connection failed: $e');
+  }
+}
+```
+
+Configurable delay and DNS timeout:
+
+```dart
+final dialer = const HappyEyeballDialer(
+  ipv6Delay: Duration(milliseconds: 500),  // default 300ms
+  dnsTimeout: Duration(seconds: 5),          // default 10s
+);
+```
+
+> **ponytail:** No early-fallback optimisation (start IPv4 when all IPv6 fail
+> before the delay expires). Add when per-connection latency stats make the
+> 300ms gap visible. Not integrated into `IoTransport` yet — the `Dialer` SPI
+> awaits a transport rewrite.
+
 ### Headers
 
 ```dart
@@ -567,6 +609,7 @@ WASM compilation is supported — `WebTransport` uses `package:web` + `dart:js_i
 ```bash
 dart run example/simple_get.dart        # GET with client
 dart run example/top_level_get.dart     # GET without client (top-level API)
+dart run example/happy_eyeball.dart     # RFC 8305 dual-stack TCP dialer
 dart run example/cancel_request.dart
 dart run example/retry_policy.dart
 dart run example/download_progress.dart # download with onProgress
