@@ -22,8 +22,10 @@ class Response<T> {
     this.tlsInfo,
     this.enrichment,
     List<Response>? history,
+    Map<String, String>? trailers,
   })  : headers = headers is Headers ? headers : Headers(headers),
-        history = history ?? const [];
+        history = history ?? const [],
+        trailers = trailers ?? const {};
 
   final Request request;
   final int statusCode;
@@ -56,6 +58,10 @@ class Response<T> {
   /// Optional enrichment (timing breakdown, TLS info, etc.).
   /// Populated when the transport collects it; `null` otherwise.
   final ResponseEnrichment? enrichment;
+
+  /// HTTP trailer headers (from chunked transfer encoding).
+  /// Empty map when no trailers are present.
+  final Map<String, String> trailers;
 
   /// 1xx — informational.
   bool get isInformational => statusCode >= 100 && statusCode < 200;
@@ -709,6 +715,7 @@ class Response<T> {
     TlsInfo? tlsInfo,
     ResponseEnrichment? enrichment,
     List<Response>? history,
+    Map<String, String>? trailers,
   }) {
     return Response<R>(
       request: request ?? this.request,
@@ -723,6 +730,7 @@ class Response<T> {
       tlsInfo: tlsInfo ?? this.tlsInfo,
       enrichment: enrichment ?? this.enrichment,
       history: history ?? this.history,
+      trailers: trailers ?? this.trailers,
     );
   }
 }

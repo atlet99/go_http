@@ -9,6 +9,7 @@ export 'src/batch.dart';
 export 'src/body_encoding.dart';
 export 'src/cancel/cancellation_source.dart';
 export 'src/cancel/cancellation_token.dart';
+export 'src/chunked_decoder.dart';
 export 'src/circuit_breaker.dart';
 export 'src/client.dart';
 export 'src/codec/bytes_decoder.dart';
