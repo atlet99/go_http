@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`NdjsonParser`** (`lib/src/json_helpers.dart`): `StreamTransformer<String, dynamic>` — parses NDJSON (newline-delimited JSON) streams. Skips blank lines and `//` comments.
 - **`sealed ApiResponse<T>`** (`lib/src/api_response.dart`): type-safe result type with `ApiSuccess<T>`, `ApiError<T>`, `ApiNetworkError<T>` — enables exhaustive `switch` without `default`. Coexists with the exception hierarchy.
 - **`GoHttpClient.requestResult<T>()`**: returns `ApiResponse<T>` instead of throwing. Catches `HttpStatusError` → `ApiError`, `RequestError` → `ApiNetworkError`.
+- **DNS-over-HTTPS resolver** (`lib/src/doh_resolver.dart`): `DohDnsResolver implements DnsResolver` — sends DNS queries as JSON over HTTPS to Google DNS / Cloudflare. Composes with `CachedDnsResolver` for TTL caching. A/AAAA record selection.
 
 ### Tests
 - Added `DelegatingTransport` + `RateLimitTransport` tests (7 tests): delegation, dispose cascade, inner swap, rate-limit blocking, per-host isolation.
@@ -25,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added HTTP chunked decoder tests (12 tests): single/multiple chunks, trailers, chunk extensions, empty body, chunked input in pieces, trailer-only response, large hex sizes, Response trailers field.
 - Added JSON helpers tests (11 tests): parseJsonInIsolate (map, list, nested, null, invalid), NdjsonParser (multiple lines, blank lines, comments, primitives, chunked input, empty input).
 - Added `ApiResponse` tests (8 tests): sealed hierarchy (success/error/network), `requestResult` (2xx, 4xx, 5xx, transport failure), exhaustive switch.
+- Added DoH resolver tests (7 tests): A record parsing, A/AAAA preference, fallback to AAAA, NXDOMAIN, empty answers, multiple records, default server.
 
 ## [0.2.3] - 2026-07-13
 

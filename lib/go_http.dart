@@ -24,6 +24,7 @@ export 'src/cookie/persistent_cookie.dart';
 export 'src/decoders_stub.dart' if (dart.library.io) 'src/decoders.dart';
 export 'src/dialer.dart';
 export 'src/dns_resolver.dart';
+export 'src/doh_resolver.dart';
 export 'src/enrichment.dart';
 export 'src/errors.dart';
 export 'src/event_hooks.dart';
