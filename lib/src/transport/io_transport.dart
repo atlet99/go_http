@@ -11,6 +11,7 @@ import '../dns_resolver.dart';
 import '../enrichment.dart';
 import '../errors.dart';
 import '../headers.dart';
+import '../pinning.dart';
 import '../proxy.dart';
 import '../request.dart';
 import '../response.dart';
@@ -20,23 +21,27 @@ import 'transport.dart';
 class IoTransport implements Transport {
   IoTransport({
     HttpClient? httpClient,
-    this.maxConnectionsPerHost = 6,
+    this.maxConnectionsPerHost = 100,
     this.autoDecompress = true,
     this.tryHttpOnHttpsError = false,
     this.resolver,
+    Duration? idleTimeout,
     ProxyMounts? proxyMounts,
     bool trustEnv = true,
     Object? verify,
     Object? minTlsVersion,
     Object? maxTlsVersion,
+    PinnedCertificates? pinnedCertificates,
   }) : _httpClient = httpClient ??
             _buildClient(
               maxConnectionsPerHost,
+              idleTimeout,
               proxyMounts,
               trustEnv,
               verify,
               minTlsVersion,
               maxTlsVersion,
+              pinnedCertificates,
             );
 
   final HttpClient _httpClient;
@@ -64,6 +69,7 @@ class IoTransport implements Transport {
     int? maxRedirects,
     bool? autoDecompress,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) async {
     cancel?.throwIfCancelled();
 
@@ -197,11 +203,42 @@ class IoTransport implements Transport {
       // is only done for idempotent methods where body is replayable or empty)
       if (request.body != null && !gzipFallbackRetried) {
         if (request.body is String) {
-          ioRequest.write(request.body as String);
+          final s = request.body as String;
+          ioRequest.write(s);
+          if (onSendProgress != null) {
+            onSendProgress(s.length, s.length);
+          }
         } else if (request.body is Uint8List) {
-          ioRequest.add(request.body as Uint8List);
+          final b = request.body as Uint8List;
+          ioRequest.add(b);
+          if (onSendProgress != null) {
+            onSendProgress(b.length, b.length);
+          }
         } else if (request.body is List<int>) {
-          ioRequest.add(request.body as List<int>);
+          final b = request.body as List<int>;
+          ioRequest.add(b);
+          if (onSendProgress != null) {
+            onSendProgress(b.length, b.length);
+          }
+        } else if (request.body is Stream<List<int>>) {
+          var sent = 0;
+          final stream = request.body as Stream<List<int>>;
+          final counting = stream.map((chunk) {
+            sent += chunk.length;
+            if (onSendProgress != null) {
+              onSendProgress(sent, -1);
+            }
+            return chunk;
+          });
+          try {
+            await ioRequest.addStream(counting);
+          } on HttpException catch (e) {
+            throw NetworkError(
+              request: request,
+              message: 'Stream error: ${e.message}',
+              originalError: e,
+            );
+          }
         } else {
           throw ArgumentError(
             'Unsupported body type: ${request.body.runtimeType}',
@@ -456,22 +493,41 @@ class IoTransport implements Transport {
 
   static HttpClient _buildClient(
     int maxConnectionsPerHost,
+    Duration? idleTimeout,
     ProxyMounts? proxyMounts,
     bool trustEnv,
     Object? verify,
     Object? minTlsVersion,
     Object? maxTlsVersion,
+    PinnedCertificates? pinnedCertificates,
   ) {
     final client = HttpClient(context: buildSecurityContext(verify, trustEnv))
       ..maxConnectionsPerHost = maxConnectionsPerHost
       ..autoUncompress = false;
 
+    if (idleTimeout != null) {
+      client.idleTimeout = idleTimeout;
+    }
+
     // ponytail: minTlsVersion/maxTlsVersion config fields are reserved for
     // platform TLS version constraints. The current dart:io SDK does not
     // expose TlsVersion — re-enable when the API stabilises.
 
-    if (verify == false) {
-      // No certificate verification.
+    final hasPins =
+        pinnedCertificates != null && pinnedCertificates.pins.isNotEmpty;
+
+    if (hasPins) {
+      client.badCertificateCallback =
+          (X509Certificate cert, String host, int port) {
+        final hostPins = pinnedCertificates.pins[host];
+        if (hostPins != null && hostPins.isNotEmpty) {
+          final fp = base64Encode(sha256.convert(cert.der).bytes);
+          return hostPins.contains(fp);
+        }
+        // Host not pinned → use verify setting.
+        return verify == false;
+      };
+    } else if (verify == false) {
       client.badCertificateCallback = (_, __, ___) => true;
     }
 

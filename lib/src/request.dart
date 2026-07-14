@@ -135,6 +135,7 @@ class Request {
     this.body,
     this.options,
     this.trace,
+    this.extensions = const {},
   }) : headers = headers is Headers ? headers : Headers(headers);
 
   final HttpMethod method;
@@ -146,6 +147,11 @@ class Request {
   /// Optional trace populated by the transport with phase timestamps.
   final RequestTrace? trace;
 
+  /// Transport-specific options passed through without the interface knowing
+  /// about them. Forward-compatible: SNI, source IP, socket buffer sizes,
+  /// etc. can be added without breaking changes.
+  final Map<String, Object?> extensions;
+
   Request copyWith({
     HttpMethod? method,
     Uri? uri,
@@ -153,6 +159,7 @@ class Request {
     Object? body,
     RequestOptions? options,
     RequestTrace? trace,
+    Map<String, Object?>? extensions,
   }) {
     return Request(
       method: method ?? this.method,
@@ -161,6 +168,7 @@ class Request {
       body: body ?? this.body,
       options: options ?? this.options,
       trace: trace ?? this.trace,
+      extensions: extensions ?? this.extensions,
     );
   }
 
@@ -176,5 +184,32 @@ class Request {
   /// Convert HttpMethod to string
   String get methodString {
     return method.name.toUpperCase();
+  }
+
+  @override
+  String toString() {
+    final buf = StringBuffer('$methodString $uri');
+    if (body != null) {
+      buf.write(' [body: ${_describeBody()}]');
+    }
+    return buf.toString();
+  }
+
+  Object _describeBody() {
+    if (body is String) {
+      final s = body as String;
+      if (s.length <= 100) {
+        return s;
+      }
+      return '${s.substring(0, 100)}... (${s.length} chars)';
+    }
+    if (body is List<int>) {
+      final b = body as List<int>;
+      return '${b.length} bytes';
+    }
+    if (body is Stream<List<int>>) {
+      return '<stream>';
+    }
+    return body.runtimeType.toString();
   }
 }

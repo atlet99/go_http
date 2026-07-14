@@ -394,6 +394,57 @@ void main() {
     });
   });
 
+  group('GoHttpClient numBytesDownloaded', () {
+    test('reflects response data length', () async {
+      final transport = FakeTransport([
+        ok(200, Uint8List.fromList([1, 2, 3, 4])),
+      ]);
+      final client = GoHttpClient(transport: transport);
+      final res = await client.get<Uint8List>(Uri.parse('https://x.test'));
+      expect(res.numBytesDownloaded, 4);
+      client.dispose();
+    });
+  });
+
+  group('GoHttpClient nextRequest', () {
+    test('null on non-redirect response', () async {
+      final transport = FakeTransport([ok(200)]);
+      final client = GoHttpClient(transport: transport);
+      final res = await client.get<Uint8List>(Uri.parse('https://x.test'));
+      expect(res.nextRequest, isNull);
+      client.dispose();
+    });
+
+    test('populated on redirect when followRedirects is false', () async {
+      final transport = FakeTransport([
+        (r) async => Response(
+              request: r,
+              statusCode: 302,
+              headers: {'Location': '/next'},
+              data: Uint8List(0),
+            ),
+      ]);
+      final client = GoHttpClient(
+        transport: transport,
+        followRedirects: false,
+      );
+      final res = await client.get<Uint8List>(Uri.parse('https://x.test'));
+      expect(res.nextRequest, isNotNull);
+      expect(res.nextRequest?.uri.path, '/next');
+      client.dispose();
+    });
+  });
+
+  group('GoHttpClient elapsed', () {
+    test('is positive after a request', () async {
+      final transport = FakeTransport([ok(200)]);
+      final client = GoHttpClient(transport: transport);
+      final res = await client.get<Uint8List>(Uri.parse('https://x.test'));
+      expect(res.elapsed, greaterThan(Duration.zero));
+      client.dispose();
+    });
+  });
+
   group('RequestOptions dialAddress', () {
     test('is null by default', () {
       const opts = RequestOptions();

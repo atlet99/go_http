@@ -5,6 +5,7 @@ import 'enrichment.dart';
 import 'errors.dart';
 import 'headers.dart';
 import 'request.dart';
+import 'status_codes.dart';
 
 /// HTTP response representation.
 class Response<T> {
@@ -15,6 +16,8 @@ class Response<T> {
     this.data,
     this.statusMessage,
     this.elapsed = Duration.zero,
+    this.numBytesDownloaded = 0,
+    this.nextRequest,
     this.remoteAddress,
     this.tlsInfo,
     this.enrichment,
@@ -30,6 +33,15 @@ class Response<T> {
 
   /// Time spent on the full request/response cycle (set by the client).
   final Duration elapsed;
+
+  /// Number of body bytes downloaded (after decompression but before
+  /// application-level decoding). Zero until the response body is read.
+  final int numBytesDownloaded;
+
+  /// The next request to follow if the client were to follow redirects.
+  /// Populated when the response is a redirect (301/302/303/307/308) and the
+  /// client has `followRedirects: false` — `null` otherwise.
+  final Request? nextRequest;
 
   /// Redirect chain (intermediate responses), earliest first.
   final List<Response> history;
@@ -84,13 +96,41 @@ class Response<T> {
   String? get charsetEncoding => _parseCharset(_header('content-type'));
 
   /// The effective charset used to decode [text]. Priority:
-  /// caller-set [encoding] → [charsetEncoding] → `utf-8`.
-  String get encoding => _encoding ?? charsetEncoding ?? 'utf-8';
+  /// caller-set [encoding] → [charsetEncoding] → [defaultEncoding] → `utf-8`.
+  String get encoding =>
+      _encoding ?? charsetEncoding ?? _resolveDefaultEncoding() ?? 'utf-8';
   String? _encoding;
 
   /// Override the charset used by [text].
   set encoding(String value) {
     _encoding = value;
+  }
+
+  /// One-line log representation: `StatusCode.phrase` + method + URI.
+  /// Body is NOT included — prevents leaking sensitive data in logs.
+  @override
+  String toString() {
+    final s = StatusCode.fromCode(statusCode);
+    final phrase = s?.phrase ?? statusMessage ?? '';
+    return '$statusCode $phrase ${request.methodString} ${request.uri}';
+  }
+
+  /// A function that auto-detects encoding from raw body bytes.
+  /// Set this to enable chardet or similar detection libraries.
+  /// Return `null` to fall through to the next priority (charset from
+  /// Content-Type, then `utf-8`).
+  String? Function(Uint8List bytes)? defaultEncoding;
+
+  String? _resolveDefaultEncoding() {
+    final fn = defaultEncoding;
+    final bytes = _bytes;
+    if (fn != null && bytes != null) {
+      final result = fn(bytes);
+      if (result != null && result.isNotEmpty) {
+        return result;
+      }
+    }
+    return null;
   }
 
   /// Decoded body as text, using [encoding].
@@ -118,6 +158,64 @@ class Response<T> {
       throw HttpStatusError(request: request, response: this);
     }
     return this;
+  }
+
+  /// The raw body bytes as a single‑chunk stream. Useful for APIs that consume
+  /// a `Stream<List<int>>` regardless of whether the body was loaded eagerly.
+  Stream<List<int>> get bytes async* {
+    final b = _bytes;
+    if (b != null) {
+      yield b;
+    }
+  }
+
+  /// Items from the `Link` response header, keyed by `rel` (or `"_"` for
+  /// unnamed links). Empty map when no `Link` header is present.
+  ///
+  /// Each value is itself a map with entries `"url"`, `"rel"`, and any
+  /// `"param"` extensions per RFC 5988 §5.
+  ///
+  /// ```dart
+  /// res.links['next']?['url']  // "https://api.example.com/items?page=2"
+  /// ```
+  Map<String, Map<String, String>> get links {
+    final result = <String, Map<String, String>>{};
+    final linkHeaders = _header('link');
+    if (linkHeaders == null || linkHeaders.isEmpty) {
+      return result;
+    }
+    for (final raw in linkHeaders.split(',')) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) {
+        continue;
+      }
+      final linkMatch = RegExp(r'<([^>]+)>(.*)').firstMatch(trimmed);
+      if (linkMatch == null) {
+        continue;
+      }
+      final url = linkMatch.group(1)!;
+      final params = linkMatch.group(2) ?? '';
+      final attrs = <String, String>{'url': url};
+      for (final param in params.split(';')) {
+        final p = param.trim();
+        if (p.isEmpty) {
+          continue;
+        }
+        final eq = p.indexOf('=');
+        if (eq > 0) {
+          final key = p.substring(0, eq).trim().toLowerCase();
+          var val = p.substring(eq + 1).trim();
+          if ((val.startsWith('"') && val.endsWith('"')) ||
+              (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.substring(1, val.length - 1);
+          }
+          attrs[key] = val;
+        }
+      }
+      final rel = attrs['rel'] ?? '_';
+      result[rel] = attrs;
+    }
+    return result;
   }
 
   // --- internals ---
@@ -605,6 +703,8 @@ class Response<T> {
     R? data,
     String? statusMessage,
     Duration? elapsed,
+    int? numBytesDownloaded,
+    Request? nextRequest,
     String? remoteAddress,
     TlsInfo? tlsInfo,
     ResponseEnrichment? enrichment,
@@ -617,6 +717,8 @@ class Response<T> {
       data: data ?? (this.data as R?),
       statusMessage: statusMessage ?? this.statusMessage,
       elapsed: elapsed ?? this.elapsed,
+      numBytesDownloaded: numBytesDownloaded ?? this.numBytesDownloaded,
+      nextRequest: nextRequest ?? this.nextRequest,
       remoteAddress: remoteAddress ?? this.remoteAddress,
       tlsInfo: tlsInfo ?? this.tlsInfo,
       enrichment: enrichment ?? this.enrichment,

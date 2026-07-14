@@ -1,8 +1,8 @@
-// ignore: avoid_web_libraries_in_flutter
 import 'dart:async';
-// ignore: deprecated_member_use
-import 'dart:html' as html;
+import 'dart:js_interop';
 import 'dart:typed_data';
+
+import 'package:web/web.dart' hide Headers, Request;
 
 import '../cancel/cancellation_token.dart';
 import '../errors.dart';
@@ -13,9 +13,8 @@ import 'transport.dart';
 
 /// Web-based transport using XMLHttpRequest.
 ///
-/// Note: This transport only works on web platforms. Binary responses are read
-/// via `responseType = 'arraybuffer'` so that arbitrary byte data (images,
-/// gzipped bodies, etc.) is preserved correctly.
+/// Uses `package:web` + `dart:js_interop` instead of `dart:html` to support
+/// compilation to WASM.
 class WebTransport implements Transport {
   @override
   Future<http_response.Response> send(
@@ -28,6 +27,7 @@ class WebTransport implements Transport {
     int? maxRedirects,
     bool? autoDecompress,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) async {
     cancel?.throwIfCancelled();
 
@@ -36,21 +36,21 @@ class WebTransport implements Transport {
     final timeout = receiveTimeout ?? const Duration(seconds: 30);
     final timeoutMs = timeout.inMilliseconds;
 
-    final httpRequest = html.HttpRequest();
-    httpRequest.responseType = 'arraybuffer';
-    httpRequest.timeout = timeoutMs;
+    final xhr = XMLHttpRequest();
+    xhr.responseType = 'arraybuffer';
+    xhr.timeout = timeoutMs;
 
     // Prepare body
-    Object? body;
+    JSAny? body;
     if (request.body != null) {
       if (request.body is String) {
-        body = request.body as String;
+        body = (request.body as String).toJS;
       } else if (request.body is Uint8List) {
-        body = request.body as Uint8List;
+        body = (request.body as Uint8List).toJS;
       } else if (request.body is List<int>) {
-        body = Uint8List.fromList(request.body as List<int>);
+        body = Uint8List.fromList(request.body as List<int>).toJS;
       } else {
-        body = request.body.toString();
+        body = request.body.toString().toJS;
       }
     }
 
@@ -59,100 +59,105 @@ class WebTransport implements Transport {
     if (cancel != null) {
       cancelSubscription = cancel.stream.listen((_) {
         try {
-          httpRequest.abort();
-          // ignore: empty_catches
+          xhr.abort();
         } catch (_) {}
       });
     }
 
     try {
       // Open and configure request
-      httpRequest
-        ..open(request.methodString, request.uri.toString())
-        ..setRequestHeader('accept-encoding', 'gzip');
+      xhr.open(request.methodString, request.uri.toString());
 
-      // Set user headers (skip reserved ones handled by the browser)
+      // Set user headers
       for (final entry in request.headers.multiItems) {
         final lower = entry.key.toLowerCase();
         if (lower == 'content-length' || lower == 'accept-encoding') {
           continue;
         }
         try {
-          httpRequest.setRequestHeader(entry.key, entry.value);
-          // ignore: empty_catches
+          xhr.setRequestHeader(entry.key, entry.value);
         } catch (_) {}
       }
 
-      // Progress reporting
+      // Download progress
       StreamSubscription? progressSub;
       if (onProgress != null) {
-        progressSub = httpRequest.onProgress.listen((html.ProgressEvent e) {
-          onProgress(e.loaded ?? 0, e.total ?? -1);
+        progressSub = xhr.onProgress.listen((ProgressEvent e) {
+          onProgress(e.loaded, e.total < 0 ? -1 : e.total);
         });
       }
 
-      // Race completion against load / timeout / error events
+      // Upload progress
+      if (onSendProgress != null) {
+        xhr.upload.onprogress = ((JSAny event) {
+          final e = event as ProgressEvent;
+          onSendProgress(e.loaded, e.total < 0 ? -1 : e.total);
+        }).toJS;
+      }
+
+      // Race completion against load / error events
       final completer = Completer<void>();
-      StreamSubscription? loadSub;
-      StreamSubscription? timeoutSub;
-      StreamSubscription? errorSub;
-      loadSub = httpRequest.onLoad.listen((_) {
+      StreamSubscription<ProgressEvent>? loadSub;
+      StreamSubscription<ProgressEvent>? errorSub;
+      loadSub = xhr.onLoad.listen((ProgressEvent e) {
         if (!completer.isCompleted) {
           completer.complete();
         }
       });
-      timeoutSub = httpRequest.onTimeout.listen((_) {
+      errorSub = xhr.onError.listen((ProgressEvent e) {
         if (!completer.isCompleted) {
-          completer.completeError(
-            TimeoutException('Request timed out', timeout),
-          );
-        }
-      });
-      errorSub = httpRequest.onError.listen((_) {
-        if (!completer.isCompleted) {
-          completer.completeError(
-            NetworkError(
-              request: request,
-              message: 'Network error: request failed',
-            ),
-          );
+          // Check if the request was aborted (cancellation)
+          if (cancel?.isCancelled ?? false) {
+            completer.completeError(
+              CancellationError(
+                request: request,
+                reason: cancel?.reason,
+                originalError: null,
+              ),
+            );
+          } else {
+            completer.completeError(
+              NetworkError(
+                request: request,
+                message: 'Network error: request failed',
+              ),
+            );
+          }
         }
       });
 
       try {
-        // Send the request body (or nothing)
         if (body != null) {
-          httpRequest.send(body);
+          xhr.send(body);
         } else {
-          httpRequest.send();
+          xhr.send();
         }
 
         await completer.future;
       } finally {
         await loadSub.cancel();
-        await timeoutSub.cancel();
         await errorSub.cancel();
         await progressSub?.cancel();
+        xhr.upload.onprogress = null;
       }
 
       cancel?.throwIfCancelled();
 
       // Read binary body
-      final dynamic raw = httpRequest.response;
+      final raw = xhr.response;
       final Uint8List bodyBytes;
-      if (raw is ByteBuffer) {
-        bodyBytes = Uint8List.view(raw);
-      } else if (raw is Uint8List) {
-        bodyBytes = raw;
-      } else if (raw == null || (httpRequest.status ?? 0) >= 400) {
+      if (raw != null) {
+        final arrayBuf = raw as JSArrayBuffer;
+        bodyBytes = arrayBuf.toDart.asUint8List();
+      } else if (xhr.status >= 400) {
         bodyBytes = Uint8List(0);
       } else {
-        bodyBytes = Uint8List.fromList('$raw'.codeUnits);
+        bodyBytes = Uint8List(0);
       }
 
       // Parse headers (lowercase keys; keep multi-value set-cookie separate)
       final responseHeaders = Headers();
-      final allHeaders = httpRequest.getAllResponseHeaders();
+      final allHeaders = xhr.getAllResponseHeaders();
       if (allHeaders.isNotEmpty) {
         for (final line in allHeaders.split('\r\n')) {
           if (line.isEmpty) {
@@ -170,41 +175,21 @@ class WebTransport implements Transport {
 
       return http_response.Response(
         request: request,
-        statusCode: httpRequest.status ?? 0,
+        statusCode: xhr.status,
         headers: responseHeaders,
         data: bodyBytes,
-        statusMessage: httpRequest.statusText,
+        statusMessage: xhr.statusText.isNotEmpty ? xhr.statusText : null,
       );
     } on HttpError {
       rethrow;
-    } on TimeoutException catch (e) {
-      throw ReadTimeoutError(
-        request: request,
-        timeout: timeout,
-        originalError: e,
-      );
-    } on html.DomException catch (e) {
-      if (e.name == 'AbortError') {
-        throw CancellationError(
-          request: request,
-          reason: cancel?.reason,
-          originalError: e,
-        );
-      }
+    } on CancellationException {
+      rethrow;
+    } catch (e) {
       throw NetworkError(
         request: request,
-        message: 'Network error: ${e.message}',
-        originalError: e,
+        message: 'Network error: ${e.toString()}',
+        originalError: e as Object?,
       );
-    } catch (e) {
-      if (e is CancellationException) {
-        throw CancellationError(
-          request: request,
-          reason: e.reason,
-          originalError: e,
-        );
-      }
-      rethrow;
     } finally {
       await cancelSubscription?.cancel();
     }

@@ -1,4 +1,4 @@
-import 'dart:convert' show jsonDecode;
+import 'dart:convert' show jsonDecode, utf8;
 import 'dart:typed_data';
 
 import 'package:go_http/go_http.dart';
@@ -39,6 +39,32 @@ void main() {
       );
       expect(enc.headers['content-type'], isNull);
       expect(enc.body, 'raw-body');
+    });
+  });
+
+  group('peekLength', () {
+    test('null returns 0', () {
+      expect(peekLength(null), 0);
+    });
+
+    test('String returns UTF-8 byte length', () {
+      expect(peekLength('hello'), 5);
+      expect(peekLength('héllo'), 6); // é = 2 bytes
+    });
+
+    test('List<int> returns length', () {
+      expect(peekLength([1, 2, 3]), 3);
+    });
+
+    test('Uint8List returns length', () {
+      expect(peekLength(Uint8List.fromList([1, 2, 3])), 3);
+    });
+
+    test('Stream returns null', () {
+      expect(
+        peekLength(Stream<List<int>>.fromIterable([utf8.encode('data')])),
+        isNull,
+      );
     });
   });
 

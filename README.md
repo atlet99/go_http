@@ -14,17 +14,20 @@ transport, batch execution, and a powerful interceptor system.
 
 - **Cross-platform** — works identically on Dart CLI, Flutter Mobile/Desktop, and Web
 - **Cancellation** — every request can be cancelled mid-flight with `CancellationToken`
-- **Retry Policy** — smart retry with equal-jitter exponential backoff (idempotent methods only)
+- **Retry Policy** — smart retry with equal-jitter exponential backoff, `Retry-After` header respect
 - **Structured timeouts** — per-phase (`connect`, `read`, `write`, `pool`) via `Timeout`
+- **Upload progress** — `onSendProgress` callback tracks bytes written (streaming and non-streaming bodies)
 - **Interceptors** — request/response/error chain (`LoggingInterceptor`, `AuthInterceptor`)
 - **Auth SPI** — `BasicAuth`, `DigestAuth` (RFC 2617/7616, MD5/SHA-256, qop, cnonce), `FunctionAuth`
 - **Bearer token refresh** — auto-refresh on 401 and single retry
 - **Cookie Store** — RFC-matching jar with `MemoryCookieStore` (domain/path, multi-value `Set-Cookie`)
 - **Headers** — case-insensitive multi-value collection, sensitive-value masking in `toString`
 - **Content-Encoding** — gzip + deflate (with raw fallback), brotli/zstd via `registerBrotli`/`registerZstd`
-- **Body encoding** — `json` → `application/json`, `Map` → `application/x-www-form-urlencoded`
+- **Body encoding** — `json` → `application/json`, `Map` → `application/x-www-form-urlencoded`, `peekLength` helper
 - **Multipart** — `multipart/form-data` encoder (zero dependencies, streaming)
 - **Proxy** — per-URL-pattern mounts (`ProxyMounts`, `URLPattern`), `NO_PROXY` support, `SOCKS5`
+- **Certificate pinning** — per-host SHA-256 fingerprint validation (`PinnedCertificates`)
+- **Top-level API** — `get()`, `post()`, `put()`, `delete()`, `patch()`, `head()`, `options()` — no client boilerplate
 - **URL & QueryParams** — immutable `Url` (httpx-style `copyWith`/`join`), immutable `QueryParams`
 - **Event hooks** — multicast request/response callbacks, hot-swappable at runtime
 - **Batch executor** — bounded-concurrency batch execution with per-result `Result<T>`
@@ -33,6 +36,7 @@ transport, batch execution, and a powerful interceptor system.
 - **Response model** — `text`, `json()`, `raiseForStatus()`, charset-aware decoding, `hasRedirectLocation`, `history`
 - **MockTransport** — handler-backed transport for testing
 - **Exception hierarchy** — 30+ typed error classes (`ConnectTimeoutError`, `ReadTimeoutError`, `ProxyError`, `HttpStatusError`, …)
+- **Happy Eyeballs** — RFC 8305 dual-stack TCP `HappyEyeballDialer`, races IPv6→IPv4 with 300ms head start
 - **Status codes** — `StatusCode` enum with 33 entries and category predicates
 - **Metrics** — timeline events via `MetricsSink` / `ConsoleMetricsSink`
 - **Base URL** — relative request URIs resolved against a client-level `baseUrl`
@@ -48,7 +52,7 @@ transport, batch execution, and a powerful interceptor system.
 
 ```yaml
 dependencies:
-  go_http: ^0.2.2
+  go_http: ^0.2.3
 ```
 
 ```bash
@@ -57,7 +61,22 @@ dart pub get
 
 ## Quick Start
 
-### GET
+### GET (top-level API)
+
+```dart
+import 'package:go_http/go_http.dart';
+
+void main() async {
+  final response = await get<Uint8List>(
+    Uri.parse('https://httpbin.org/get'),
+  );
+  print('Status: ${response.statusCode}');
+  print('Body: ${response.text}');
+}
+```
+
+No client boilerplate — `GoHttpClient` is cached internally. Available:
+`get`, `post`, `put`, `delete`, `patch`, `head`, `options`.
 
 ```dart
 import 'package:go_http/go_http.dart';
@@ -316,6 +335,74 @@ final client = GoHttpClient(
 );
 ```
 
+### Certificate Pinning
+
+```dart
+final client = GoHttpClient(
+  clientConfig: const ClientConfig(
+    pinnedCertificates: PinnedCertificates(
+      pins: {
+        'api.example.com': ['8Rw90Ej3T3i3C3oG7gQVo0GxGxLxPxQxRxSxTxUxVxWxXxY='],
+      },
+    ),
+  ),
+);
+```
+
+Fingerprints are SHA-256 of the server's DER-encoded X.509 certificate,
+base64-encoded (without the `sha256/` prefix). To compute one:
+
+```dart
+import 'dart:convert' show base64;
+import 'package:crypto/crypto.dart' show sha256;
+final fp = base64.encode(sha256.convert(cert.der).bytes);
+```
+
+> **ponytail:** Pin check runs when system CA rejects the cert. True
+> MITM-with-forged-CA pinning requires a `PinningDialer` wrapping
+> `SecureSocket` directly.
+
+### Happy Eyeballs (RFC 8305)
+
+`HappyEyeballDialer` resolves a hostname to all IPv6 and IPv4 addresses,
+then races connections: IPv6 starts immediately (300ms head start), IPv4 begins
+after the delay. The first successful connection wins; losers are destroyed.
+
+```dart
+import 'package:go_http/go_http.dart';
+
+Future<void> main() async {
+  final dialer = const HappyEyeballDialer();
+
+  try {
+    final socket = await dialer.dial(
+      'example.com',
+      80,
+      timeout: const Duration(seconds: 10),
+    );
+    print('Connected to ${socket.remoteAddress.address}');
+    print('Address family: ${socket.remoteAddress.type}');
+    socket.destroy();
+  } catch (e) {
+    print('Connection failed: $e');
+  }
+}
+```
+
+Configurable delay and DNS timeout:
+
+```dart
+final dialer = const HappyEyeballDialer(
+  ipv6Delay: Duration(milliseconds: 500),  // default 300ms
+  dnsTimeout: Duration(seconds: 5),          // default 10s
+);
+```
+
+> **ponytail:** No early-fallback optimisation (start IPv4 when all IPv6 fail
+> before the delay expires). Add when per-connection latency stats make the
+> 300ms gap visible. Not integrated into `IoTransport` yet — the `Dialer` SPI
+> awaits a transport rewrite.
+
 ### Headers
 
 ```dart
@@ -456,6 +543,13 @@ response.history; // redirect chain
 response.elapsed; // full round-trip duration
 response.charsetEncoding; // from Content-Type
 response.encoding = 'windows-1251'; // override charset
+response.defaultEncoding = (bytes) => detect(bytes); // auto-detect hook
+response.numBytesDownloaded; // body byte count (after decompress)
+response.bytes; // body as Stream<List<int>>
+response.links['next']?['url']; // parsed Link: header
+response.nextRequest; // computed redirect request (when followRedirects:false)
+response.httpVersion; // "HTTP/1.1", "HTTP/2.0", etc.
+response.reasonPhrase; // alias for statusMessage
 ```
 
 ### MockTransport
@@ -504,18 +598,22 @@ try {
 |---|---|---|
 | Dart CLI / Server | `IoTransport` (dart:io) | ✅ Full support |
 | Flutter Mobile/Desktop | `IoTransport` (dart:io) | ✅ Full support |
-| Flutter Web | `WebTransport` (dart:html) | ✅ Full support |
+| Flutter Web / WASM | `WebTransport` (package:web + dart:js_interop) | ✅ Full support |
 
 The correct transport is selected automatically via conditional imports.
 Stub classes ensure compilation on all platforms with zero configuration.
+WASM compilation is supported — `WebTransport` uses `package:web` + `dart:js_interop` instead of `dart:html`.
 
 ## Examples
 
 ```bash
-dart run example/simple_get.dart
+dart run example/simple_get.dart        # GET with client
+dart run example/top_level_get.dart     # GET without client (top-level API)
+dart run example/happy_eyeball.dart     # RFC 8305 dual-stack TCP dialer
 dart run example/cancel_request.dart
 dart run example/retry_policy.dart
-dart run example/download_progress.dart
+dart run example/download_progress.dart # download with onProgress
+dart run example/upload_progress.dart   # upload with onSendProgress
 dart run example/post_json.dart
 dart run example/batch_config.dart
 ```

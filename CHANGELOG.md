@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-07-13
+
+### Added
+- **Rich Response API**: `response.numBytesDownloaded` — body byte count after decompression; `response.nextRequest` — computed redirect request (when `followRedirects: false`); `response.links` — parsed `Link:` header as a `Map<String, Map<String, String?>>` keyed by `rel`; `response.bytes` — body as `Stream<List<int>>`; `response.httpVersion` — protocol version string; `response.reasonPhrase` — alias for `statusMessage`; `response.defaultEncoding` — function override for charset detection (e.g. chardet integration).
+- **Limits pool config**: `Limits` class with `maxConnections` (100), `maxKeepaliveConnections` (20), `keepaliveExpiry` (5s), `copyWith`, `toString`. Wired into `ClientConfig.limits` and `IoTransport` (`maxConnectionsPerHost`, `idleTimeout`).
+- **Cookies RFC 6265 jar**: `PersistentCookie` class with domain/path/secure/httponly/expires metadata. Full `Set-Cookie` header parser supporting `Domain`, `Path`, `Secure`, `HttpOnly`, `Max-Age`, `Expires`. RFC 6265 §5.1.3 domain-matching, §5.1.4 path-matching, §5.2.6 Secure-only enforcement, expiry with auto-removal.
+- **StatusCode enum expansion**: Added `resetContent` (205), `multipleChoices` (300).
+- **Obfuscated `toString`**: `Request.toString()` — one-line with method + URI, body truncated to 100 chars or shown as `N bytes` / `<stream>` (no sensitive data leak). `Response.toString()` — one-line `"200 OK GET /path"` using `StatusCode.phrase`, no headers or body.
+- **Incremental text/line decoder**: `textStreamDecoder()` transforms `Stream<List<int>>` → `Stream<String>` with correct chunk-boundary handling for multi-byte encodings. `lineStreamDecoder()` splits a string stream by newlines. Both are `StreamTransformer`-based.
+- **Streaming request bodies**: `Stream<List<int>>` accepted as `Request.body` and piped via `HttpClientRequest.addStream()`. Transports that don't support streaming will throw an appropriate error.
+- **Top-level convenience API** (`lib/src/api.dart`): `get()`, `post()`, `put()`, `delete()`, `patch()`, `head()`, `options()` — standalone functions backed by a cached default `GoHttpClient`. Import `go_http` and call `get('https://...')` directly without creating a client.
+- **Upload progress** (`onSendProgress`): `ProgressCallback` on every request method. `IoTransport` counts bytes as they are written — streaming bodies are wrapped with a counting transform (`Stream.map`), non-streaming bodies report 100% at once. Wired through `Transport.send()`, `MockTransport`, and `FakeTransport`.
+- **`Retry-After` header respect**: `GoHttpClient._sendWithRetry` overrides exponential backoff on `429 Too Many Requests` / `503 Service Unavailable` when the server sends a `Retry-After` header (seconds or HTTP-date). Capped at 60s to prevent runaway waits.
+- **`Request.extensions`**: `Map<String, Object?>` on `Request` for transport-specific metadata without interface changes. Preserved through `copyWith`.
+- **`peekLength` helper** (`lib/src/body_encoding.dart`): returns byte length for common body types without materialising the entire body — `null`→0, `String`→UTF-8 bytes, `List<int>`→list length, `Stream`→`null`.
+- **`poolTimeout` in `Limits`**: new field (default 10s) for the maximum time to wait for a connection from the pool. Wired into `copyWith`, `toString`, and `fromJson`.
+- **Per-host certificate pinning** (`lib/src/pinning.dart`): `PinnedCertificates` config class — `Map<String, List<String>>` mapping hostnames to base64-encoded SHA-256 fingerprints. Wired into `ClientConfig` and `IoTransport._buildClient` via `badCertificateCallback`.
+- **Makefile targets**: `fix` (dart fix —dry-run), `fix-all` (apply fixes + format), `test` (dart test), `check-all` (format → analyze → test).
+- **`HappyEyeballDialer`** (`lib/src/dialer.dart`): RFC 8305 dual-stack TCP dialer — resolves both IPv6 and IPv4 addresses, starts IPv6 immediately with a 300ms head start before racing IPv4, first successful connection wins and losers are destroyed. Self-contained implementation using `InternetAddress.lookup` directly.
+
+### Changed
+- **WASM-ready**: `web_transport.dart` migrated from `dart:html` to `package:web` + `dart:js_interop`. Unblocks compilation to WASM for Flutter Web. `Request` and `Headers` naming conflicts resolved via `hide` in the import.
+- `MemoryCookieStore` rewritten: RFC 6265 Set-Cookie parsing, per-cookie metadata, domain/path/secure filtering, cookie expiry, automatic dedup on re-set, default-path inference. `getCookies()` returns all matching cookies sorted by path specificity.
+
+### Tests
+- Added comprehensive test suite: Limits (8 tests), RFC 6265 cookies (16 tests), Request/Response toString (7 tests), text/line stream decoders (5 tests), streaming request body, expanded StatusCode enum.
+- Added tests for `peekLength` (5 tests), `Request.extensions` (2 tests), certificate pinning (`PinnedCertificates` equality/hash), `Retry-After` parsing, `nextRequest`/`elapsed`/`numBytesDownloaded` on Response, and `Limits.poolTimeout`.
+- Added `HappyEyeballDialer` integration tests (3 tests): IPv4 fallback via localhost, DNS resolution failure, connection refused.
+
 ## [0.2.2] - 2026-07-13
 
 ### Added

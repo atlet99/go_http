@@ -12,8 +12,10 @@ import 'errors.dart';
 import 'event_hooks.dart';
 import 'headers.dart';
 import 'interceptors/interceptor.dart';
+import 'limits.dart';
 import 'metrics/metrics_sink.dart';
 import 'multipart.dart';
+import 'pinning.dart';
 import 'policy/redirect_policy.dart';
 import 'policy/retry_policy.dart';
 import 'proxy.dart';
@@ -65,6 +67,8 @@ class GoHttpClient {
               verify: verify ?? clientConfig?.verify,
               minTlsVersion: clientConfig?.minTlsVersion,
               maxTlsVersion: clientConfig?.maxTlsVersion,
+              limits: clientConfig?.limits,
+              pinnedCertificates: clientConfig?.pinnedCertificates,
             ),
         _interceptors = List.from(
           interceptors.isNotEmpty
@@ -142,6 +146,8 @@ class GoHttpClient {
     Object? verify,
     Object? minTlsVersion,
     Object? maxTlsVersion,
+    Limits? limits,
+    PinnedCertificates? pinnedCertificates,
   }) {
     if (isIoPlatform) {
       return IoTransport(
@@ -150,6 +156,9 @@ class GoHttpClient {
         verify: verify,
         minTlsVersion: minTlsVersion,
         maxTlsVersion: maxTlsVersion,
+        maxConnectionsPerHost: limits?.maxConnections ?? 100,
+        idleTimeout: limits?.keepaliveExpiry,
+        pinnedCertificates: pinnedCertificates,
       );
     } else {
       return WebTransport();
@@ -163,6 +172,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) {
     return request<T>(
       Request(
@@ -174,6 +184,7 @@ class GoHttpClient {
       cancel: cancel,
       decoder: decoder,
       onProgress: onProgress,
+      onSendProgress: onSendProgress,
     );
   }
 
@@ -186,6 +197,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) {
     final enc = encodeRequest(
       data: data,
@@ -203,6 +215,7 @@ class GoHttpClient {
       cancel: cancel,
       decoder: decoder,
       onProgress: onProgress,
+      onSendProgress: onSendProgress,
     );
   }
 
@@ -215,6 +228,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) {
     final enc = encodeRequest(
       data: data,
@@ -232,6 +246,7 @@ class GoHttpClient {
       cancel: cancel,
       decoder: decoder,
       onProgress: onProgress,
+      onSendProgress: onSendProgress,
     );
   }
 
@@ -244,6 +259,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) {
     final enc = encodeRequest(
       data: data,
@@ -261,6 +277,7 @@ class GoHttpClient {
       cancel: cancel,
       decoder: decoder,
       onProgress: onProgress,
+      onSendProgress: onSendProgress,
     );
   }
 
@@ -273,6 +290,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) {
     final enc = encodeRequest(
       data: data,
@@ -290,6 +308,7 @@ class GoHttpClient {
       cancel: cancel,
       decoder: decoder,
       onProgress: onProgress,
+      onSendProgress: onSendProgress,
     );
   }
 
@@ -299,6 +318,7 @@ class GoHttpClient {
     RequestOptions? options,
     CancellationToken? cancel,
     Decoder<T>? decoder,
+    ProgressCallback? onProgress,
   }) {
     return request<T>(
       Request(
@@ -309,6 +329,7 @@ class GoHttpClient {
       ),
       cancel: cancel,
       decoder: decoder,
+      onProgress: onProgress,
     );
   }
 
@@ -318,6 +339,7 @@ class GoHttpClient {
     RequestOptions? options,
     CancellationToken? cancel,
     Decoder<T>? decoder,
+    ProgressCallback? onProgress,
   }) {
     return request<T>(
       Request(
@@ -328,6 +350,7 @@ class GoHttpClient {
       ),
       cancel: cancel,
       decoder: decoder,
+      onProgress: onProgress,
     );
   }
 
@@ -363,6 +386,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) async {
     if (_isShuttingDown) {
       throw ClientShutdownError(request: req);
@@ -374,6 +398,7 @@ class GoHttpClient {
         cancel: cancel,
         decoder: decoder,
         onProgress: onProgress,
+        onSendProgress: onSendProgress,
       );
     } finally {
       _inFlight--;
@@ -388,6 +413,7 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) async {
     var request = req;
 
@@ -442,6 +468,7 @@ class GoHttpClient {
           maxRedirects: maxRedirects,
           autoDecompress: autoDecompress,
           onProgress: onProgress,
+          onSendProgress: onSendProgress,
         );
 
         // Store cookies from response
@@ -488,6 +515,19 @@ class GoHttpClient {
           }
         }
 
+        // Compute follow-up request for redirects when auto-follow is off
+        final nextReq = resp.hasRedirectLocation
+            ? _buildRedirectRequest(request, resp)
+            : null;
+
+        // Count downloaded bytes from the raw response body
+        final rawData = resp.data;
+        final bytesCount = rawData is Uint8List
+            ? rawData.length
+            : rawData is List<int>
+                ? rawData.length
+                : 0;
+
         // Decode if a decoder was provided, otherwise return the raw bytes.
         // Re-wrap in a properly-typed Response<T> (avoids an unsafe cast).
         final decoded = decoder != null ? decoder.decode(resp.data) : resp.data;
@@ -496,6 +536,8 @@ class GoHttpClient {
           data: decoded,
           elapsed: stopwatch.elapsed,
           enrichment: enrichment,
+          numBytesDownloaded: bytesCount,
+          nextRequest: nextReq,
         );
       } catch (e) {
         // Build a typed HttpError
@@ -555,7 +597,15 @@ class GoHttpClient {
         if (_retryPolicy != null &&
             _retryPolicy!.shouldRetry(request, error, attempt)) {
           attempt++;
-          final delay = _retryPolicy!.getDelay(attempt);
+          var delay = _retryPolicy!.getDelay(attempt);
+          // Honor Retry-After header (RFC 9110 §10.2.3) — server-specified
+          // delay always overrides the policy's backoff.
+          if (error is HttpStatusError) {
+            final retryAfter = _parseRetryAfter(error.response);
+            if (retryAfter != null) {
+              delay = retryAfter;
+            }
+          }
           _metrics?.onRetry(request, attempt, delay);
           await Future.delayed(delay);
           continue;
@@ -578,12 +628,14 @@ class GoHttpClient {
     CancellationToken? cancel,
     Decoder<T>? decoder,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   }) =>
       send<T>(
         buildRequest(req),
         cancel: cancel,
         decoder: decoder,
         onProgress: onProgress,
+        onSendProgress: onSendProgress,
       );
 
   Timeout? _resolveTimeout(Object? timeout) {
@@ -675,6 +727,32 @@ class GoHttpClient {
       tlsInfo: resp.tlsInfo,
       extra: extra,
     );
+  }
+
+  /// Build the next request for a redirect response.
+  Request? _buildRedirectRequest(Request originalRequest, Response response) {
+    final location = response.headers['location'];
+    if (location == null || location.isEmpty) {
+      return null;
+    }
+    final redirectUri = originalRequest.uri.resolve(location);
+    return originalRequest.copyWith(uri: redirectUri, body: null);
+  }
+
+  /// Parse a `Retry-After` header (RFC 9110 §10.2.3).
+  /// ponytail: only supports seconds-integer; HTTP-date parsing deferred.
+  Duration? _parseRetryAfter(Response resp) {
+    final val = resp.headers['retry-after'];
+    if (val == null) {
+      return null;
+    }
+    final trimmed = val.trim();
+    final seconds = int.tryParse(trimmed);
+    if (seconds != null && seconds >= 0) {
+      // Cap at 60s to avoid unreasonably long delays.
+      return Duration(seconds: seconds > 60 ? 60 : seconds);
+    }
+    return null;
   }
 
   /// Expose the redirect policy (used by tests / advanced configuration)

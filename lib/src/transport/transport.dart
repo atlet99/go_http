@@ -11,6 +11,9 @@ typedef ProgressCallback = void Function(int received, int total);
 /// Abstract transport interface for HTTP requests
 abstract class Transport {
   /// Send an HTTP request
+  ///
+  /// [onProgress] reports download progress; [onSendProgress] reports upload
+  /// progress (meaningful for streaming request bodies).
   Future<Response> send(
     Request request, {
     CancellationToken? cancel,
@@ -21,6 +24,7 @@ abstract class Transport {
     int? maxRedirects,
     bool? autoDecompress,
     ProgressCallback? onProgress,
+    ProgressCallback? onSendProgress,
   });
 
   /// Dispose resources

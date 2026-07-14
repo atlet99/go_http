@@ -4,7 +4,9 @@ import 'cookie/cookie_store.dart';
 import 'enrichment.dart';
 import 'event_hooks.dart';
 import 'interceptors/interceptor.dart';
+import 'limits.dart';
 import 'metrics/metrics_sink.dart';
+import 'pinning.dart';
 import 'policy/redirect_policy.dart';
 import 'policy/retry_policy.dart';
 import 'proxy.dart';
@@ -38,11 +40,13 @@ class ClientConfig {
     this.maxRedirects = 5,
     this.autoDecompress = true,
     this.maxAuthRetries = 1,
+    this.limits,
     this.verify,
     this.proxyMounts,
     this.trustEnv = true,
     this.defaultHeaders = const {'accept-encoding': 'gzip, deflate, br'},
     this.cookieStore,
+    this.pinnedCertificates,
     this.minTlsVersion,
     this.maxTlsVersion,
   });
@@ -62,6 +66,25 @@ class ClientConfig {
       return null;
     }
 
+    final limitsJson = json['limits'] as Map<String, dynamic>?;
+    final limits = limitsJson != null
+        ? Limits(
+            maxConnections: limitsJson['maxConnections'] as int? ?? 100,
+            maxKeepaliveConnections:
+                limitsJson['maxKeepaliveConnections'] as int? ?? 20,
+            keepaliveExpiry: limitsJson['keepaliveExpiry'] != null
+                ? Duration(
+                    milliseconds: limitsJson['keepaliveExpiry'] as int,
+                  )
+                : const Duration(seconds: 5),
+            poolTimeout: limitsJson['poolTimeout'] != null
+                ? Duration(
+                    milliseconds: limitsJson['poolTimeout'] as int,
+                  )
+                : const Duration(seconds: 10),
+          )
+        : null;
+
     return ClientConfig(
       connectTimeout: dur('connectTimeout') ?? const Duration(seconds: 10),
       sendTimeout: dur('sendTimeout') ?? const Duration(seconds: 30),
@@ -70,6 +93,7 @@ class ClientConfig {
       maxRedirects: json['maxRedirects'] as int? ?? 5,
       autoDecompress: json['autoDecompress'] as bool? ?? true,
       maxAuthRetries: json['maxAuthRetries'] as int? ?? 1,
+      limits: limits,
       trustEnv: json['trustEnv'] as bool? ?? true,
       defaultHeaders: json['defaultHeaders'] is Map
           ? Map<String, String>.from(json['defaultHeaders'] as Map)
@@ -91,6 +115,7 @@ class ClientConfig {
   final int maxRedirects;
   final bool autoDecompress;
   final int maxAuthRetries;
+  final Limits? limits;
   final Object? verify;
   final ProxyMounts? proxyMounts;
   final bool trustEnv;
@@ -103,6 +128,17 @@ class ClientConfig {
 
   /// Maximum TLS version (e.g. dart:io `TlsVersion.tls1_3`).
   final Object? maxTlsVersion;
+
+  /// Per-host certificate pinning configuration.
+  ///
+  /// Maps hostnames to acceptable SHA-256 certificate fingerprints. When a
+  /// pinned host presents an untrusted certificate, the transport accepts it
+  /// only if the fingerprint matches one of the pins.
+  ///
+  /// ponytail: only checked when system CA verification fails. True pinning
+  /// (rejecting valid-looking forged CA certs) requires a `PinningDialer`
+  /// that wraps `SecureSocket` directly.
+  final PinnedCertificates? pinnedCertificates;
 
   List<ValidationError> validate() {
     final errors = <ValidationError>[];
@@ -138,11 +174,13 @@ class ClientConfig {
     int? maxRedirects,
     bool? autoDecompress,
     int? maxAuthRetries,
+    Limits? limits,
     Object? verify,
     ProxyMounts? proxyMounts,
     bool? trustEnv,
     Map<String, String>? defaultHeaders,
     CookieStore? cookieStore,
+    PinnedCertificates? pinnedCertificates,
     Object? minTlsVersion,
     Object? maxTlsVersion,
   }) =>
@@ -158,11 +196,13 @@ class ClientConfig {
         maxRedirects: maxRedirects ?? this.maxRedirects,
         autoDecompress: autoDecompress ?? this.autoDecompress,
         maxAuthRetries: maxAuthRetries ?? this.maxAuthRetries,
+        limits: limits ?? this.limits,
         verify: verify ?? this.verify,
         proxyMounts: proxyMounts ?? this.proxyMounts,
         trustEnv: trustEnv ?? this.trustEnv,
         defaultHeaders: defaultHeaders ?? this.defaultHeaders,
         cookieStore: cookieStore ?? this.cookieStore,
+        pinnedCertificates: pinnedCertificates ?? this.pinnedCertificates,
         minTlsVersion: minTlsVersion ?? this.minTlsVersion,
         maxTlsVersion: maxTlsVersion ?? this.maxTlsVersion,
       );

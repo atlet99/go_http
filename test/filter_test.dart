@@ -3,8 +3,6 @@ import 'dart:typed_data';
 import 'package:go_http/go_http.dart';
 import 'package:test/test.dart';
 
-import 'fake_transport.dart';
-
 void main() {
   group('StatusCodeFilter', () {
     test('exact', () {

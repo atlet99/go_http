@@ -66,6 +66,85 @@ void main() {
       expect(StatusCode.fromCode(200), StatusCode.ok);
       expect(StatusCode.fromCode(599), isNull);
     });
+
+    test('new codes', () {
+      expect(StatusCode.resetContent.code, 205);
+      expect(StatusCode.resetContent.phrase, 'Reset Content');
+      expect(StatusCode.multipleChoices.code, 300);
+      expect(StatusCode.multipleChoices.phrase, 'Multiple Choices');
+    });
+
+    test('Response toString single-line with status', () {
+      final req = Request(
+        method: HttpMethod.get,
+        uri: Uri.parse('https://example.com/api'),
+      );
+      final res = Response(
+        request: req,
+        statusCode: 200,
+        headers: {},
+        data: null,
+      );
+      final s = res.toString();
+      expect(s, '200 OK GET https://example.com/api');
+    });
+
+    test('Response toString unknown status falls back to statusMessage', () {
+      final req = Request(
+        method: HttpMethod.get,
+        uri: Uri.parse('https://example.com/'),
+      );
+      final res = Response(
+        request: req,
+        statusCode: 599,
+        headers: {},
+        data: null,
+        statusMessage: 'Network Connect Timeout Error',
+      );
+      final s = res.toString();
+      expect(s, contains('599'));
+      expect(s, contains('Network Connect Timeout Error'));
+    });
+
+    test('Request toString shows method and uri', () {
+      final req = Request(
+        method: HttpMethod.post,
+        uri: Uri.parse('https://example.com/submit'),
+      );
+      expect(req.toString(), 'POST https://example.com/submit');
+    });
+
+    test('Request toString with short body', () {
+      final req = Request(
+        method: HttpMethod.post,
+        uri: Uri.parse('https://example.com/login'),
+        body: 'user=admin',
+      );
+      final s = req.toString();
+      expect(s, contains('POST https://example.com/login'));
+      expect(s, contains('user=admin'));
+    });
+
+    test('Request toString masks large body', () {
+      final req = Request(
+        method: HttpMethod.post,
+        uri: Uri.parse('https://example.com/upload'),
+        body: 'x' * 200,
+      );
+      final s = req.toString();
+      expect(s, contains('...'));
+      expect(s, contains('200 chars'));
+    });
+
+    test('Request toString binary body shows byte count', () {
+      final req = Request(
+        method: HttpMethod.put,
+        uri: Uri.parse('https://example.com/file'),
+        body: Uint8List.fromList([1, 2, 3]),
+      );
+      final s = req.toString();
+      expect(s, contains('3 bytes'));
+    });
   });
 
   group('MockTransport', () {
@@ -213,6 +292,99 @@ void main() {
       res.encoding = 'koi8-r';
       expect(res.text, 'Привет');
     });
+    test('numBytesDownloaded is zero by default', () {
+      expect(responseWith().numBytesDownloaded, 0);
+    });
+
+    test('numBytesDownloaded can be set', () {
+      final res = Response<Uint8List>(
+        request:
+            Request(method: HttpMethod.get, uri: Uri.parse('https://x.test')),
+        statusCode: 200,
+        data: Uint8List.fromList([1, 2, 3]),
+        numBytesDownloaded: 3,
+      );
+      expect(res.numBytesDownloaded, 3);
+    });
+
+    test('bytes stream yields the body data', () async {
+      final res = responseWith(data: Uint8List.fromList([1, 2, 3]));
+      final chunks = await res.bytes.toList();
+      expect(chunks, [
+        [1, 2, 3],
+      ]);
+    });
+
+    test('defaultEncoding is called and overrides charset', () {
+      final bytes = Uint8List.fromList([0xCF, 0xF0]);
+      final res = responseWith(data: bytes);
+      res.defaultEncoding = (b) => b.length == 2 ? 'cp1251' : 'utf-8';
+      expect(res.encoding, 'cp1251');
+    });
+
+    test('defaultEncoding falls through when it returns null', () {
+      final res = responseWith();
+      res.defaultEncoding = (_) => null;
+      expect(res.encoding, 'utf-8');
+    });
+
+    test('links parses Link header', () {
+      final res = responseWith(
+        headers: {
+          'Link': '<https://api.example.com/items?page=2>; rel="next", '
+              '<https://api.example.com/items?page=0>; rel="prev"',
+        },
+      );
+      expect(res.links['next']?['url'], 'https://api.example.com/items?page=2');
+      expect(res.links['prev']?['url'], 'https://api.example.com/items?page=0');
+    });
+
+    test('links returns empty map without Link header', () {
+      expect(responseWith().links, isEmpty);
+    });
+
+    test('textStreamDecoder decodes UTF-8 bytes', () async {
+      final stream = Stream<List<int>>.fromIterable([
+        utf8.encode('Hello '),
+        utf8.encode('World'),
+      ]);
+      final chunks = await stream.transform(textStreamDecoder()).toList();
+      expect(chunks.join(), 'Hello World');
+    });
+
+    test('textStreamDecoder handles multi-byte chars across chunks', () async {
+      final priver = utf8.encode('Привет');
+      final mid = priver.length ~/ 2;
+      final stream = Stream<List<int>>.fromIterable([
+        priver.sublist(0, mid),
+        priver.sublist(mid),
+      ]);
+      final chunks = await stream.transform(textStreamDecoder()).toList();
+      expect(chunks.join(), 'Привет');
+    });
+
+    test('lineStreamDecoder splits by newline', () async {
+      final stream = Stream<String>.fromIterable(['a\nb\nc']);
+      final lines = await stream.transform(lineStreamDecoder()).toList();
+      expect(lines, ['a', 'b', 'c']);
+    });
+
+    test('lineStreamDecoder handles empty line', () async {
+      final stream = Stream<String>.fromIterable(['a\n\nb']);
+      final lines = await stream.transform(lineStreamDecoder()).toList();
+      expect(lines, ['a', '', 'b']);
+    });
+
+    test('textStreamDecoder + lineStreamDecoder pipeline', () async {
+      final stream = Stream<List<int>>.fromIterable([
+        utf8.encode('line1\nline2\nline3'),
+      ]);
+      final lines = await stream
+          .transform(textStreamDecoder())
+          .transform(lineStreamDecoder())
+          .toList();
+      expect(lines, ['line1', 'line2', 'line3']);
+    });
   });
 
   group('Headers', () {
@@ -284,11 +456,90 @@ void main() {
     });
   });
 
+  group('Request streaming body', () {
+    test('toString shows <stream> for Stream body', () {
+      final req = Request(
+        method: HttpMethod.post,
+        uri: Uri.parse('https://example.com/upload'),
+        body: Stream<List<int>>.fromIterable([utf8.encode('data')]),
+      );
+      expect(req.toString(), contains('<stream>'));
+    });
+  });
+
+  group('Request extensions', () {
+    test('defaults to empty map', () {
+      final req = Request(
+        method: HttpMethod.get,
+        uri: Uri.parse('https://example.com'),
+      );
+      expect(req.extensions, isEmpty);
+    });
+
+    test('passes through copyWith', () {
+      final req = Request(
+        method: HttpMethod.get,
+        uri: Uri.parse('https://example.com'),
+        extensions: {'sni': 'custom.example.com'},
+      );
+      expect(req.extensions['sni'], 'custom.example.com');
+      final copy = req.copyWith(extensions: {'timeout': 5000});
+      expect(copy.extensions['timeout'], 5000);
+      // Original unchanged
+      expect(req.extensions['sni'], 'custom.example.com');
+    });
+  });
+
   group('stderrLog', () {
     test('is a function that can be called', () {
       stderrLog('hello');
       stderrLog(42);
       // no crash = pass
+    });
+  });
+
+  group('Limits', () {
+    test('defaults', () {
+      const l = Limits();
+      expect(l.maxConnections, 100);
+      expect(l.maxKeepaliveConnections, 20);
+      expect(l.keepaliveExpiry, const Duration(seconds: 5));
+    });
+
+    test('const defaults', () {
+      const l = Limits.defaults;
+      expect(l.maxConnections, 100);
+      expect(l.poolTimeout, const Duration(seconds: 10));
+    });
+
+    test('custom', () {
+      const l = Limits(
+        maxConnections: 50,
+        maxKeepaliveConnections: 10,
+        keepaliveExpiry: Duration(seconds: 10),
+        poolTimeout: Duration(seconds: 5),
+      );
+      expect(l.maxConnections, 50);
+      expect(l.maxKeepaliveConnections, 10);
+      expect(l.keepaliveExpiry, const Duration(seconds: 10));
+      expect(l.poolTimeout, const Duration(seconds: 5));
+    });
+
+    test('copyWith', () {
+      const l = Limits.defaults;
+      final l2 = l.copyWith(maxConnections: 200);
+      expect(l2.maxConnections, 200);
+      expect(l2.maxKeepaliveConnections, 20);
+      expect(l2.keepaliveExpiry, const Duration(seconds: 5));
+      expect(l2.poolTimeout, const Duration(seconds: 10));
+    });
+
+    test('toString', () {
+      const l = Limits();
+      expect(l.toString(), contains('maxConnections: 100'));
+      expect(l.toString(), contains('maxKeepaliveConnections: 20'));
+      expect(l.toString(), contains('keepaliveExpiry'));
+      expect(l.toString(), contains('poolTimeout'));
     });
   });
 
@@ -328,6 +579,37 @@ void main() {
       const cfg = ClientConfig(followRedirects: false, maxRedirects: 0);
       expect(cfg.followRedirects, isFalse);
       expect(cfg.maxRedirects, 0);
+    });
+
+    test('limits is null by default', () {
+      const cfg = ClientConfig();
+      expect(cfg.limits, isNull);
+    });
+
+    test('custom limits', () {
+      const limits = Limits(maxConnections: 42);
+      const cfg = ClientConfig(limits: limits);
+      expect(cfg.limits, isNotNull);
+      expect(cfg.limits!.maxConnections, 42);
+    });
+
+    test('copyWith limits', () {
+      const cfg = ClientConfig();
+      final cfg2 = cfg.copyWith(limits: const Limits(maxConnections: 99));
+      expect(cfg2.limits!.maxConnections, 99);
+    });
+
+    test('fromJson limits', () {
+      final cfg = ClientConfig.fromJson({
+        'limits': {
+          'maxConnections': 50,
+          'maxKeepaliveConnections': 10,
+          'keepaliveExpiry': 10000,
+        },
+      });
+      expect(cfg.limits!.maxConnections, 50);
+      expect(cfg.limits!.maxKeepaliveConnections, 10);
+      expect(cfg.limits!.keepaliveExpiry, const Duration(seconds: 10));
     });
   });
 
@@ -389,6 +671,16 @@ void main() {
 
     test('GoHttpClient.defaults() creates a client without throwing', () {
       expect(() => GoHttpClient.defaults(), isNot(throwsA(anything)));
+    });
+
+    test('limits is wired to transport', () async {
+      const limits = Limits(maxConnections: 5);
+      const cfg = ClientConfig(limits: limits);
+      final transport = FakeTransport([ok(200)]);
+      final client = GoHttpClient(clientConfig: cfg, transport: transport);
+      final res = await client.get<Uint8List>(Uri.parse('https://x.test'));
+      expect(res.statusCode, 200);
+      client.dispose();
     });
   });
 }
