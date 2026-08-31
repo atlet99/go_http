@@ -23,17 +23,17 @@ jobs:
       - name: Setup Dart (attempt 1)
         id: setup_dart_attempt_1
         continue-on-error: true
-        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
 
       - name: Setup Dart (attempt 2)
         if: steps.setup_dart_attempt_1.outcome == 'failure'
         id: setup_dart_attempt_2
         continue-on-error: true
-        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
 
       - name: Setup Dart (attempt 3)
         if: steps.setup_dart_attempt_1.outcome == 'failure' && steps.setup_dart_attempt_2.outcome == 'failure'
-        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
 
       - name: Validate tag matches pubspec version
         run: |
